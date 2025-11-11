@@ -288,6 +288,32 @@ for q, a in st.session_state["rag_history"]:
 # USER QUESTION
 # =========================================================
 query = st.text_input("Ask your question:")
+# =========================================================
+# ✅ SMALL CENTERED BUTTONS BELOW QUESTION
+# =========================================================
+
+# Add a bit of spacing
+st.write("")
+
+# Create three columns: left (empty), center (buttons), right (empty)
+left, center, right = st.columns([1, 1, 1])
+
+with center:
+    st.write("### ")  # small spacing header
+    b1 = st.button("🔄 Rebuild Index", use_container_width=False)
+    b2 = st.button("🧹 Clear Chat", use_container_width=False)
+
+# Handle actions
+if b1:
+    if os.path.isdir(INDEX_DIR):
+        shutil.rmtree(INDEX_DIR)
+    st.cache_resource.clear()
+    st.success("✅ Index cleared. Restart app to rebuild.")
+    st.stop()
+
+if b2:
+    st.session_state.pop("rag_history", None)
+    st.rerun()
 
 if query:
 
