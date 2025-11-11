@@ -3,8 +3,6 @@ import shutil
 import pandas as pd
 import streamlit as st
 import difflib
-import chardet  # helps detect encoding for CSV files
-
 # =========================================================
 # PAGE CONFIG
 # =========================================================
