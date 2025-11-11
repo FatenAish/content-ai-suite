@@ -1,0 +1,108 @@
+﻿AI Content on LTPs SOP
+  
+
+The purpose of this SOP is to establish clear guidelines for creating and managing AI-generated content for Long Tail Pages (LTPs) on Bayut.
+Purpose:
+To deliver accurate, engaging, and brand-aligned AI-generated content for Long Tail Pages (LTPs) on Bayut in both English and Arabic.
+Project Details:
+* Requirements: Create original, AI-supported content for Bayut’s LTPs. This includes writing from scratch based on research, data, keyword intent, and internal guidelines.
+* Volume: 76  pages, with an average of 700 - 1450  words per page.
+* Timeline: Ongoing.
+* Placement: The content will appear in the bottom section of each relevant LTP, serving as the main descriptive body below property listings and filters.
+  
+
+
+
+Content Guidelines:
+Item
+	Details & Examples
+	Data Sourcing
+	Ensure all factual data, including prices and payment plans, are validated through primary sources only:
+* Bayut’s New Projects section
+* Official developer websites
+* Trusted public releases from the developer
+	Average Pricing Format
+	All mentions of average property prices must specify whether the value is per month or per year.
+	Price Representation        
+	Prices should always follow the format: AED + figure + ‘K’ or ‘M’
+* AED 1.5M
+* AED 10.5K
+	Off-Plan Projects        
+	When covering off-plan developments, provide a complete project snapshot, including:
+* Developer Name
+* Location
+* Property Type
+* Starting Price
+* Payment Plan
+* Expected Handover Date
+	Ranking & Data Presentation        
+	When listing projects or areas by performance metrics such as ROI or rental yield, always arrange from highest to lowest.
+* Example: 1. JVC (8.2% ROI), 2. Dubai Marina (7.6%), 3. Downtown Dubai (6.4%)
+	Internal Linking
+	Always link to Products and listings Only:
+TruBroker™
+* Product page: TruBroker
+* Agent search:  Find a TruBroker
+
+
+TruCheck™
+* Product page: TruCheck
+
+
+TruEstimate™
+* Product blog: TruEstimate Article
+* Tool: TruEstimate Tool
+	Formatting & Style
+
+
+
+
+	* Main Headings:  Oswald - 36 pt
+* Headings: Proxima Nova - 13 pt
+* Subheadings: Proxima Nova - 12 pt
+* Body Text: Proxima Nova - 11 pt
+	Prompt Instructions 
+* All Pages Prompt
+I am a professional Marketing Content Specialist with expertise in developing comprehensive, high-performing landing pages that align with the full user journey. My primary focus is on crafting long-form, information-rich content that supports users whether they are buying, renting, or investing. Each landing page is strategically structured, blending informative storytelling with clear, action-oriented messaging. The goal is to deliver pages that are user-centric, trustworthy, and optimised for engagement.
+All instructions below must be followed precisely;
+* Ensure the content is thorough, well-structured, and rich in insight. Each section should provide in-depth analysis and cover every relevant detail.
+* Expand on each point with real examples and data where possible to enhance credibility and user understanding.
+* Maintain an expert tone across all content.
+* I will provide each header between quotation marks.
+* Ensure the content remains comprehensive without becoming unnecessarily long or repetitive.
+* Only include information that adds direct value to the reader. Avoid reiterating the same point in different sections.
+* When discussing general information, keep it concise. However, provide in-depth details when addressing topics related to properties, developers, areas, or Bayut platforms.
+* Where applicable, incorporate Bayut’s tools and services such as TruEstimate, TruCheck™, TruBroker™, and search 2.0 to strengthen the user proposition.
+________________
+
+
+* Headers-Based Prompt
+1. Informational & Definitions
+This section includes general explanations, terminology, and conceptual overviews. For any header in this category, write a detailed paragraph specifically tailored to the topic. General context or unrelated definitions must be excluded. The paragraph should remain focused and relevant.
+2. Benefits & Reasons
+This section covers lifestyle advantages, investment benefits, and other motivations behind user decisions. For each provided header, develop a multi-layered analysis that is specific to the subject. General statements or broad reasoning should be avoided.
+3. Process & How-To
+This section must follow a step-by-step structure, clearly covering procedures, legalities, or comparisons. For the following subheaders, write bullet-pointed content that reflects procedural clarity and depth:
+* Process
+* Documents
+* Eligibility Criteria
+Each point must be informative, practical, and tied directly to the user experience.
+4. Location-Driven Investment Content
+This section focuses on area-specific investment insights.
+For headers such as:
+Top Areas in [Loc] for [property_type]
+Provide pricing data for apartments or villas and include examples of popular buildings or communities.
+For apartment-focused content, mention the average sale or rental prices and identify key residential buildings in each location.
+For villa-focused content, reference average sale or rental prices and outline the most sought-after villa communities in the area.
+Ensure that each insight is relevant and helps users make informed decisions.
+Popular Off-Plan Projects in the Area
+When writing about off-plan projects, include the following information for each:
+* Developer name
+* Project location
+* Property type
+* Starting price
+* Payment plan
+* Expected handover date
+This data should be presented clearly and woven naturally into the content to communicate project value and investment appeal.
+References
+●     Link provided for the project sheet.

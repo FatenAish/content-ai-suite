@@ -1,0 +1,134 @@
+﻿AI Content on LPVs SOP
+Purpose:
+To provide structured, high-quality, SEO-optimised content for LPV project sections on Bayut, focusing on individual off-plan property developments. This includes creating original, brand-aligned, and informative descriptions that highlight the project’s value proposition for potential buyers and investors.
+________________
+
+
+Project Details:
+* Requirements: Write full-length English and Arabic content for each new project LPV. This includes structured project descriptions, developer insights, investment benefits, and area highlights.
+
+* Volume: Approx. 400 – 900 words per project, depending on the scale and data available.
+
+* Timeline: Ongoing based on project pipeline and releases.
+
+* Placement: The content appears at the top or body of project LPVs, serving as the main descriptive section visible to users.
+
+________________
+
+
+Content Guidelines:
+Item
+	Details & Examples
+	Data Sourcing
+	All factual details (e.g. prices, handover dates, payment plans) must be validated using:
+– Bayut’s New Projects section
+– Official developer websites
+– Press releases / verified marketing material
+	Price Format
+	Always mention prices as:
+✅ AED 1.2M
+✅ AED 850K
+❌ AED 1,200,000 or 850,000 AED
+	Project Snapshot
+	Every LPV project must include:
+– Developer Name
+– Project Location
+– Property Type (apartments, villas, etc.)
+– Starting Price
+– Payment Plan
+– Estimated Handover Date
+	Structure
+	Begin with a short intro (2–3 lines) followed by bullet-point data (snapshot), then flow into longer description paragraphs. Each feature (location, amenities, payment plan, etc.) should have a dedicated paragraph.
+	Internal Linking
+	Always include hyperlinks to:
+– Project’s parent location (e.g. Apartments for sale in Downtown Dubai)
+– Developer LPV if available
+– TruEstimate™, TruCheck™, TruBroker™ tools and product pages
+	Tone & Style
+	Clear, professional, and informative. Avoid salesy tone. Write for informed buyers and investors. Use British English. Include keywords naturally for SEO.
+	Developer Section
+	Include a short branded paragraph about the developer’s reputation, past projects, and position in the market. Ensure the paragraph is unique to the LPV.
+	________________
+
+
+Formatting & Style:
+Element
+	Font / Size
+	Main Title
+	Oswald – 36 pt
+	Headings
+	Proxima Nova – 13 pt
+	Subheadings
+	Proxima Nova – 12 pt
+	Body Text
+	Proxima Nova – 11 pt
+	________________
+
+
+Prompt Instructions:
+General Prompt (for all pages):
+I am a professional Marketing Content Specialist with expertise in high-conversion, user-focused property content. My aim is to present each project on Bayut’s LPVs with clarity, depth, and SEO optimisation. I will incorporate verified data and real value propositions to help users make informed decisions about off-plan property purchases in the UAE.
+Execution Rules:
+   * Expand on each element of the project (location, views, amenities, pricing, developer) in a fluid, connected way.
+
+   * Vary structure to avoid repetition—do not always place data in the same position.
+
+   * Include examples where applicable (e.g. "a 1-bedroom apartment starting at AED 1.1M").
+
+   * Always integrate Bayut tools and services where appropriate.
+
+________________
+
+
+Key Content Sections to Include:
+      1. Overview
+
+         * Short opening paragraph explaining what the project is and where it’s located.
+
+         * Highlight unique positioning (e.g. waterfront, near metro, branded interiors).
+
+            2. Project Snapshot (bullet format)
+
+               * Developer Name
+
+               * Location
+
+               * Property Type
+
+               * Starting Price
+
+               * Payment Plan
+
+               * Estimated Handover
+
+                  3. Detailed Description
+
+                     * Write rich paragraphs that expand on:
+
+                        * Developer’s background
+
+                        * Amenities and features
+
+                        * Views and finishes
+
+                        * Area and connectivity
+
+                        * Target audience (investors, families, first-time buyers)
+
+                           4. Bayut Tools Section
+
+                              * Add a sentence where relevant:
+
+
+"Use Bayut’s TruEstimate™ to assess property value, or explore listings with TruCheck™ for verified availability."
+
+
+________________
+
+
+References
+                                 * Bayut New Projects
+
+                                 * Official developer site for the project
+
+                                 * Product pages for TruBroker™, TruCheck™, TruEstimate™
