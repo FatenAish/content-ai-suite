@@ -1,16 +1,19 @@
 import os
 import shutil
-import difflib
 import pandas as pd
 import streamlit as st
+import difflib
+import chardet  # ✅ Fix for CSV encoding
+
 
 # =========================================================
 # PAGE CONFIG
 # =========================================================
 st.set_page_config(page_title="Dubizzle Group AI Content Lab – Internal RAG", layout="wide")
 
+
 # =========================================================
-# CUSTOM CSS
+# CLEAN CSS
 # =========================================================
 st.markdown("""
 <style>
@@ -33,21 +36,6 @@ main .block-container { padding-top: 0rem !important; }
 .bubble.user { background: #f2f2f2; margin-left: auto; }
 .bubble.ai { background: #ffffff; margin-right: auto; }
 
-.header-title {
-  font-size: 36px;
-  font-weight: 900;
-  text-align: center;
-  color: #111;
-}
-.header-title .red { color: #D92C27; }   /* Dubizzle Red */
-.header-title .green { color: #1DBF73; } /* Bayut Green */
-
-.sub {
-  text-align:center;
-  font-size:15px;
-  color:#555;
-}
-
 .evidence {
   background:#fafafa;
   border:1px solid #e5e7eb;
@@ -55,30 +43,57 @@ main .block-container { padding-top: 0rem !important; }
   padding:10px;
   margin:10px 0;
 }
+.title-red {
+  font-size: 34px;
+  font-weight: 900;
+  color: #D92C27;
+  text-align:center;
+}
+.title-main {
+  font-size: 28px;
+  font-weight: 700;
+  color: #111;
+  text-align:center;
+  margin-top: -10px;
+}
 </style>
 """, unsafe_allow_html=True)
+
 
 # =========================================================
 # HEADER
 # =========================================================
-st.markdown("""
-<div style="text-align:center; margin-top:10px;">
-    <span style="font-size:36px; font-weight:900; color:#D92C27;">
-        Dubizzle Group AI Lab
-    </span>
-    <span style="font-size:36px; font-weight:900; color:#111;">
-        – Internal RAG
-    </span>
-</div>
-
-<div style="text-align:center; font-size:15px; color:#555;">
-    Internal AI-powered knowledge system for Bayut & Dubizzle teams
-</div>
-""", unsafe_allow_html=True)
+st.markdown("<div class='title-red'>Dubizzle Group AI Lab</div>", unsafe_allow_html=True)
+st.markdown("<div class='title-main'>Internal RAG</div>", unsafe_allow_html=True)
+st.markdown("<p style='text-align:center; color:#555;'>Fast internal knowledge search using your uploaded documents.</p>", unsafe_allow_html=True)
 
 
 # =========================================================
-# RAG IMPORTS
+# FILE DOWNLOAD HELPER
+# =========================================================
+def find_best_matching_file(query, folder="data"):
+    """Return best matching filename in /data."""
+    if not os.path.isdir(folder):
+        return None
+
+    files = [f for f in os.listdir(folder) if f != "faiss_store"]
+
+    if not files:
+        return None
+
+    match = difflib.get_close_matches(query.lower(), [f.lower() for f in files], n=1, cutoff=0.3)
+    if not match:
+        return None
+
+    for f in files:
+        if f.lower() == match[0]:
+            return os.path.join(folder, f)
+
+    return None
+
+
+# =========================================================
+# RAG SYSTEM IMPORTS
 # =========================================================
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
@@ -98,38 +113,69 @@ from langchain_core.output_parsers import StrOutputParser
 DATA_DIR = "data"
 INDEX_DIR = os.path.join(DATA_DIR, "faiss_store")
 
+
+# ✅ Embeddings
 @st.cache_resource
 def get_embeddings():
     return HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 
-# ✅ Load Groq API Key from Streamlit Secrets
+
+# ✅ Groq LLM
 def get_local_llm():
-    api_key = st.secrets["GROQ_API_KEY"]
     return ChatGroq(
+        api_key=os.getenv("GROQ_API_KEY"),   # ✅ Required to run on Streamlit
         model="llama-3.1-8b-instant",
-        temperature=0.2,
-        api_key=api_key
+        temperature=0.2
     )
 
+
 # =========================================================
-# DOCUMENT LOADING
+# DOCUMENT LOADERS
 # =========================================================
 def load_document(path):
     ext = os.path.splitext(path)[1].lower()
     try:
-        if ext == ".pdf": return PyPDFLoader(path).load()
-        if ext == ".docx": return Docx2txtLoader(path).load()
-        if ext in [".txt", ".md"]: return TextLoader(path).load()
-        if ext == ".csv": return CSVLoader(path, encoding="utf-8").load()
+
+        # ✅ PDF
+        if ext == ".pdf":
+            return PyPDFLoader(path).load()
+
+        # ✅ DOCX
+        if ext == ".docx":
+            return Docx2txtLoader(path).load()
+
+        # ✅ TXT / MD
+        if ext in [".txt", ".md"]:
+            return TextLoader(path).load()
+
+        # ✅ ✅ FIXED CSV LOADER WITH ENCODING DETECTION
+        if ext == ".csv":
+            try:
+                with open(path, "rb") as f:
+                    raw = f.read()
+                    enc = chardet.detect(raw)["encoding"] or "utf-8"
+
+                df = pd.read_csv(path, encoding=enc, on_bad_lines="skip")
+                return [{"page_content": df.to_string(), "metadata": {"source": path}}]
+
+            except Exception as e:
+                st.warning(f"⚠️ Could not read CSV file {os.path.basename(path)} — {e}")
+                return []
+
+        # ✅ XLSX
         if ext == ".xlsx":
             df = pd.read_excel(path)
             return [{"page_content": df.to_string(), "metadata": {"source": path}}]
-    except:
+
+    except Exception as e:
+        st.warning(f"⚠️ Skipping unreadable file {path}: {e}")
         return []
+
 
 def load_default_docs():
     docs = []
-    if not os.path.isdir(DATA_DIR): return docs
+    if not os.path.isdir(DATA_DIR):
+        return docs
 
     for f in os.listdir(DATA_DIR):
         if f == "faiss_store":
@@ -139,12 +185,15 @@ def load_default_docs():
             docs.extend(load_document(p))
     return docs
 
+
 def faiss_exists():
     return os.path.isdir(INDEX_DIR)
+
 
 def save_faiss(store):
     os.makedirs(DATA_DIR, exist_ok=True)
     store.save_local(INDEX_DIR)
+
 
 def load_faiss():
     return FAISS.load_local(
@@ -153,6 +202,7 @@ def load_faiss():
         allow_dangerous_deserialization=True
     )
 
+
 @st.cache_resource
 def build_vectorstore(docs):
     splitter = RecursiveCharacterTextSplitter(chunk_size=250, chunk_overlap=50)
@@ -160,40 +210,43 @@ def build_vectorstore(docs):
     texts = [c.page_content for c in chunks]
     return FAISS.from_texts(texts, get_embeddings())
 
+
 # =========================================================
 # BUTTONS
 # =========================================================
-c1, c2 = st.columns(2)
+c1, c2 = st.columns([1, 1])
 
 if c1.button("🔄 Rebuild Index"):
     if os.path.isdir(INDEX_DIR):
         shutil.rmtree(INDEX_DIR)
     st.cache_resource.clear()
-    st.success("Index cleared. Restart app to rebuild.")
+    st.success("✅ Index cleared. Refresh the page.")
     st.stop()
 
 if c2.button("🧹 Clear Chat"):
     st.session_state.pop("rag_history", None)
     st.rerun()
 
+
 # =========================================================
-# LOAD VECTORSTORE
+# LOAD INDEX
 # =========================================================
 if faiss_exists():
-    with st.spinner("Loading knowledge base…"):
+    with st.spinner("Loading FAISS index..."):
         vectorstore = load_faiss()
     st.success("✅ Index loaded")
 else:
     docs = load_default_docs()
     if not docs:
-        st.error("❌ No documents found in /data")
+        st.error("❌ No documents found in /data folder.")
         st.stop()
 
-    with st.spinner("Creating index…"):
+    with st.spinner("Building index…"):
         vectorstore = build_vectorstore(docs)
         save_faiss(vectorstore)
 
     st.success("✅ Index created")
+
 
 # =========================================================
 # CHAT HISTORY
@@ -205,18 +258,19 @@ for q, a in st.session_state["rag_history"]:
     st.markdown(f"<div class='bubble user'>{q}</div>", unsafe_allow_html=True)
     st.markdown(f"<div class='bubble ai'>{a}</div>", unsafe_allow_html=True)
 
+
 # =========================================================
-# USER INPUT
+# USER QUESTION
 # =========================================================
 query = st.text_input("Ask your question:")
 
 if query:
 
-    # ✅ Check for download requests
+    # ✅ FIRST: detect download requests
     if any(x in query.lower() for x in ["download", "file", "get", "send", "share"]):
         match = find_best_matching_file(query)
         if match:
-            st.success(f"✅ File found: **{os.path.basename(match)}**")
+            st.success(f"✅ File ready: **{os.path.basename(match)}**")
             with open(match, "rb") as f:
                 st.download_button(
                     label=f"⬇️ Download {os.path.basename(match)}",
@@ -238,32 +292,28 @@ if query:
         retrieve_docs = extract_q | rag_retriever
 
         prepare_context = RunnableLambda(
-            lambda docs: "\n\n".join(d.page_content[:1500] for d in docs)
+            lambda docs: "\n\n".join(d.page_content[:1800] for d in docs)
         )
 
         context_pipeline = retrieve_docs | prepare_context
 
         prompt = PromptTemplate.from_template("""
-You are the official AI assistant for Dubizzle Group.
+You are an internal AI assistant for Dubizzle Group.
 
-✅ Always answer in:
-- Clear structure
-- Full detail
-- Professional tone
-- Step-by-step logic
-- Helpful and actionable advice
+✅ Always answer in a clear, structured, detailed, and helpful way.  
+✅ Use the provided context FIRST.  
+✅ If context is incomplete, logically fill in missing details.  
+✅ Never give short answers.
 
-Use ONLY the provided context. If something is missing, still give useful reasoning.
-
-====================
+=====================================
 CONTEXT:
 {context}
-====================
+=====================================
 
 QUESTION:
 {question}
 
-====================
+=====================================
 DETAILED ANSWER:
 """)
 
