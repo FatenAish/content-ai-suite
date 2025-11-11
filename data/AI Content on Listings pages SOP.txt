@@ -1,0 +1,339 @@
+﻿AI Content on Listings pages SOP
+  
+
+The objective of this SOP is to establish clear and structured guidelines for the creation and management of AI-generated content designed to enhance Listings Pages on Bayut, including Listings Page Views (LPVs) and Long Tale Pages (LTPs).
+Purpose:
+To provide accurate, engaging, and brand-consistent AI-generated content for Listings Page Views (LPVs) on Bayut, covering both Ready LPVs, New Projects LPVs and Projects Pages in English and Arabic, as well as Long Tale Pages (LTPs).
+Project Details:
+* Requirements: Develop original, AI-assisted content for Bayut’s Listings Page View (LPVs) and Long Tale Pages (LTPs), based on thorough research, keyword intent, data analysis, and internal content guidelines.
+* Volume: 
+   * Ready LPVs: 112 pages so far, with an average of 1500 words per page for LOC2, 1000 words per page for LOC3 and 850 words per page for LOC4.
+   * New Projects LPVs: 30 Pages so far, with an average of 750 - 2000 words per page, depending on the headers and page volume.
+   * Project Pages LPVs: 25 pages so far, with an average of 750 - 1300 words per page.
+   * Long Tale Pages LTPs: 38 pages so far, with an average of 700 - 1450 words per page.
+* Timeline: Ongoing.
+* Placement: The content will appear in the bottom section of each relevant LPV or LTP, serving as the main descriptive body below property listings and filters. But for project pages, the content appears on a separate, dedicated page for each development, such as Hills Park in Dubai Hills Estate.
+* 
+   * Placement for Ready LPVs
+  
+
+
+
+________________
+
+
+   * Placement for New Projects LPVs
+  
+
+
+
+________________
+
+
+   * Placement for Projects Pages
+  
+
+
+
+________________
+
+
+   * Placement for LTPs
+  
+
+
+
+________________
+
+
+Content Guidelines:
+
+
+Item
+	Details & Examples
+	
+
+
+
+
+
+Data Sourcing
+	Ensure all factual data, including prices and payment plans, are validated through primary sources only:
+   * Bayut’s Data System
+   * Bayut’s New Projects section
+   * Official developer websites
+   * Trusted public releases from the developer
+   * For off plan Projects Pages, Use the Project’s Brochure
+	
+
+Price Representation        
+	Prices should always follow the format: AED + figure + ‘K’ or ‘M’
+   * AED 1.5M
+   * AED 10.5K
+	Locations Representation
+	When referencing locations, ensure to include five examples. These can be areas, communities, buildings, or off-plan projects, depending on the context.
+	Properties Representation
+	When referencing villa types, only 3, 4, and 5-bedroom units (and larger) should be included, except in rare cases where smaller configurations are relevant. For apartments, you can start from studio units.
+	
+
+
+
+
+
+Off-Plan Projects        
+	When covering off-plan developments, provide a complete project snapshot, including:
+   * Developer Name
+   * Location
+   * Property Type
+   * Unit Sizes
+   * Starting Price
+   * Payment Plan
+   * Expected Handover Date
+	
+
+Ranking & Data Presentation        
+	When listing projects or areas by performance metrics such as ROI or rental yield, always arrange from highest to lowest.
+   * Example: 1. JVC (8.2% ROI), 2. Dubai Marina (7.6%), 3. Downtown Dubai (6.4%)
+	
+
+Important definitions
+	SeaView Vs Waterfront
+   * Seaview Area: An area that overlooks the sea or is located near the beachfront.
+   * Waterfront Area: An area featuring man-made water elements, such as canals or lagoons.
+	
+
+
+
+
+
+
+
+Internal Linking
+	Always link to Products and listings Only:
+TruBroker™
+   * Product page: TruBroker
+   * Agent search: Find a TruBroker
+
+
+TruCheck™
+   * Product page: TruCheck
+
+
+TruEstimate™
+   * Product blog: TruEstimate Article
+   * Tool: TruEstimate Tool
+	
+
+Formatting & Style
+
+
+
+
+	   * Main Headings: Oswald - 36 pt
+   * Headings: Proxima Nova - 13 pt
+   * Subheadings: Proxima Nova - 12 pt
+   * Body Text: Proxima Nova - 11 pt
+	
+
+
+
+________________
+
+
+
+
+Content Headers:
+Ready LPVs Headers
+Headers structure differ based on the location. For instance, headers used for Loc 2 pages are distinct from those applied to Loc 3 and Loc 4. Refer to the following resource for a detailed comparison:
+   * AI LPV Content Headings Bayut
+
+
+New Projects LPVs Headers
+Headers structure for New Projects LPVs is customized based on location. For example, the layout used in Loc 1 differs from those in Loc 2, Loc 3, and Loc 4. Please refer to the resource below for a detailed breakdown.
+   * New Projects in UAE Headers
+
+
+Off Plan Projects LPVs
+For Off Plan Projects, the headers are the same.
+   * Off Plan LPVs Headers
+LTPs 
+   * Long Tale Pages Headers
+
+
+________________
+
+
+
+
+Prompt Instructions 
+Prompt Instructions for Ready LPVs
+   * Loc 2 Prompt
+   * Loc 3 Prompt
+   * Loc 4 Prompt
+
+
+Prompt Instructions for New Projects LPVs 
+   * New Projects Prompt
+   * Off plan projects Promot
+
+
+Prompt Instructions for LTPs
+   * LTPs Prompt
+
+
+________________
+
+
+Full Content Creation Process
+Step 1: Understand Headers Structure
+Before writing any content:
+1.1 Review Headers
+   * Open the page brief or headers file/ sheet provided.
+   * Study every main header and subheader carefully.
+
+For LPVs:
+      * Differentiate between Ready LPVs, New Projects LPVs and Projects Pages.
+      * Recognize differences across LOC1, LOC2, LOC3, LOC4 headers structure.
+
+For LTPs:
+         * Understand headers grouping:
+         * Informational/Definitions
+         * Benefits/Reasons
+         * Process/How-To
+         * Location-Specific Investment Content
+
+1.2 Identify Content Flow and Focus
+            * Define the primary page purpose:
+
+               * Is it to explain an area, a property or an off plan project?
+               * Showcase investment opportunities?
+               * Guide a buyer through a process?
+
+                  * Note if the focus is lifestyle, affordability, luxury, or investment-driven.
+
+1.3 Study SEO/Keyword Intent
+                     * Understand which keywords are being targeted.
+                     * Confirm what the reader expects to find on the page.
+
+🔵 Critical Rule: You cannot begin writing until you fully understand the page structure, headers, and objective.
+Step 2: Apply the Correct AI Prompt
+Once you understand the page’s structure and focus:
+2.1 Choose the Right Prompt
+
+
+
+
+
+
+For
+	Use
+	Ready LPVs
+	
+
+Use the relevant LOC2 / LOC3 / LOC4 prompt.
+
+
+	
+
+New Projects LPVs
+
+
+
+
+	                        * Use the New Projects LPV prompt.
+                        * Use the Project Pages Prompt.
+
+
+
+
+	Long Tale Pages (LTPs)
+	Use the Long Tail Pages prompt provided 
+
+
+
+
+	
+
+
+🔵 Critical Rule: AI output is just a starting point. It must be reviewed, validated, and refined before use.
+Step 3: Customize and Optimize the Content
+After you have the AI draft:
+3.1 Realign with the Page Header Structure
+                        * Organize the output exactly according to the provided headers.
+                        * No section should be missing or misplaced.
+                        * Avoid additional, irrelevant content that is not aligned with headers.
+
+3.2 Tailor Examples, Data, and Insights
+                           * Add real-world examples specific to the location, project, or property type.
+                           * For area insights, provide examples of:
+                           * Key communities
+                           * Popular projects
+                           * Price ranges (with correct per year/month clarification when needed).
+
+                              * For off-plan projects, always include:
+                              * Developer name
+                              * Location
+                              * Property type
+                              * Starting price (AED format)
+                              * Payment plan details
+                              * Expected handover date
+
+3.3 Validate All Factual Data
+Cross-check all information against:
+                                 * Bayut’s Data System
+                                 * New Projects Section
+                                 * Official Developer Websites
+                                 * Trusted Public Releases
+                                 * Project’s Brochure
+
+Note: Prices, payment plans, handover dates, and developer names must be 100% accurate.
+3.4 Run the Prompt
+                                    * Input the base prompt into your AI tool.
+                                    * Ensure the AI output generates the full structure, matching the required headers.
+                                    * Verify that essential sections like project details, area insights, process steps, or investment data are present.
+3.5 Adjust Tone, Depth, and Style
+                                    * Maintain a professional, expert tone.
+                                    * Avoid unnecessary repetition.
+                                    * Ensure the text flows naturally and logically between sections.
+
+3.6 Apply Correct Formatting
+
+
+Element
+	Style
+	Price Format
+	AED + figure + K or M (e.g., AED 1.2M, AED 950K).
+	Main Headings
+	Oswald 36 pt
+	Headings
+	Proxima Nova 13 pt
+	Subheadings
+	Proxima Nova 12 pt
+	Body Text
+	Proxima Nova 11 pt
+	
+
+3.7 Insert Internal Links
+Always link to Products and listings Only:
+TruBroker™
+                                       * Product page: TruBroker
+                                       * Agent search:  Find a TruBroker
+
+
+TruCheck™
+                                       * Product page: TruCheck
+
+
+TruEstimate™
+                                       * Product blog: TruEstimate Article
+                                       * Tool: TruEstimate Tool
+
+🔵 Critical Rule: No external links, and no random property listing links unless explicitly requested.
+________________
+
+
+Final Key Reminder
+"Understand → Apply → Customize"
+Only after understanding the landing page structure should you run the prompt, and only after generating the first draft should you adapt it to match the user journey, structure, and Bayut’s brand voice."
+🔵 Do not generate blindly. Do not submit without full alignment.
+ 🔵 Think like the user, write like the expert.
