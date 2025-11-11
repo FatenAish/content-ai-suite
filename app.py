@@ -227,21 +227,31 @@ def build_vectorstore(docs):
 
 
 # =========================================================
-# BUTTONS
+# ✅ ACTION BUTTONS — CENTERED AT THE BOTTOM
 # =========================================================
-c1, c2 = st.columns([1, 1])
 
-if c1.button("🔄 Rebuild Index"):
+st.markdown("---")
+st.write("")  # spacing
+
+# Create empty columns to center the tools block
+left, center, right = st.columns([1, 2, 1])
+
+with center:
+    st.write("### Tools")
+    rebuild = st.button("🔄 Rebuild Index", use_container_width=True)
+    clear_chat = st.button("🧹 Clear Chat", use_container_width=True)
+
+# Handle actions
+if rebuild:
     if os.path.isdir(INDEX_DIR):
         shutil.rmtree(INDEX_DIR)
     st.cache_resource.clear()
-    st.success("✅ Index cleared. Refresh the page.")
+    st.success("✅ Index cleared. Restart app to rebuild.")
     st.stop()
 
-if c2.button("🧹 Clear Chat"):
+if clear_chat:
     st.session_state.pop("rag_history", None)
     st.rerun()
-
 
 # =========================================================
 # LOAD INDEX
