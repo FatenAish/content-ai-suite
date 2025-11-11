@@ -132,35 +132,50 @@ def get_local_llm():
 # =========================================================
 # DOCUMENT LOADERS
 # =========================================================
-def load_document(path):
+def load_document(path: str):
+    """Load any supported document and ALWAYS return a list of Document objects."""
     ext = os.path.splitext(path)[1].lower()
+
     try:
 
-        # ✅ PDF
+        # -------- PDF --------
         if ext == ".pdf":
-            return PyPDFLoader(path).load()
+            docs = PyPDFLoader(path).load()
+            return docs if isinstance(docs, list) else [docs]
 
-        # ✅ DOCX
+        # -------- DOCX --------
         if ext == ".docx":
-            return Docx2txtLoader(path).load()
+            docs = Docx2txtLoader(path).load()
+            return docs if isinstance(docs, list) else [docs]
 
-        # ✅ TXT / MD
+        # -------- TXT / MD --------
         if ext in [".txt", ".md"]:
-            return TextLoader(path).load()
+            docs = TextLoader(path, autodetect_encoding=True).load()
+            return docs if isinstance(docs, list) else [docs]
 
-        # ✅ ✅ FIXED CSV LOADER WITH ENCODING DETECTION
+        # -------- CSV --------
         if ext == ".csv":
-            try:
-                with open(path, "rb") as f:
-                    raw = f.read()
-                    enc = chardet.detect(raw)["encoding"] or "utf-8"
+            # Try robust encodings
+            for enc in ["utf-8", "utf-8-sig", "cp1256", "windows-1256", None]:
+                try:
+                    docs = CSVLoader(path, encoding=enc).load()
+                    return docs if isinstance(docs, list) else [docs]
+                except:
+                    continue
+            return []  # couldn't load
 
-                df = pd.read_csv(path, encoding=enc, on_bad_lines="skip")
-                return [{"page_content": df.to_string(), "metadata": {"source": path}}]
+        # -------- XLSX --------
+        if ext == ".xlsx":
+            df = pd.read_excel(path)
+            content = df.to_string(index=False)
+            return [Document(page_content=content, metadata={"source": path})]
 
-            except Exception as e:
-                st.warning(f"⚠️ Could not read CSV file {os.path.basename(path)} — {e}")
-                return []
+        # -------- Unsupported --------
+        return []
+
+    except Exception as e:
+        print("Skipping bad file:", path, e)
+        return []
 
         # ✅ XLSX
         if ext == ".xlsx":
