@@ -1,12 +1,13 @@
 streamlit
-pandas
 langchain
 langchain-community
 langchain-text-splitters
 langchain-core
+langchain-groq
 faiss-cpu
-python-docx
 pypdf
+docx2txt
+pandas
+python-dotenv
 sentence-transformers
 huggingface-hub
-langchain-groq
