@@ -4,7 +4,7 @@ import pandas as pd
 import streamlit as st
 import difflib
 import chardet
-from langchain.schema import Document  # ✅ Needed for XLSX loader
+from langchain_core.documents import Document  # ✅ Needed for XLSX loader
 
 # =========================================================
 # PAGE CONFIG
