@@ -222,14 +222,20 @@ for q, a in st.session_state["rag_history"]:
 query = st.text_input("Ask your question:")
 
 # =========================================================
-# ✅ CENTERED TOOL BUTTONS BELOW QUESTION
+# ✅ CENTERED TOOL BUTTONS BELOW QUESTION — SIDE BY SIDE
 # =========================================================
-st.write("")  # small spacing
-left, mid, right = st.columns([1,1,1])
+st.write("")  # spacing
+
+left, mid, right = st.columns([1, 2, 1])
 
 with mid:
-    b1 = st.button("🔄 Rebuild Index")
-    b2 = st.button("🧹 Clear Chat")
+    c1, c2 = st.columns([1, 1])
+
+    with c1:
+        b1 = st.button("🔄 Rebuild Index", use_container_width=True)
+
+    with c2:
+        b2 = st.button("🧹 Clear Chat", use_container_width=True)
 
 # Actions
 if b1:
