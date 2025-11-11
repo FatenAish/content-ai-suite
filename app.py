@@ -104,7 +104,7 @@ def get_embeddings():
 def get_local_llm():
     return ChatGroq(
         model="llama-3.1-8b-instant",
-        temperature=0.2  # slightly higher for more detailed answers
+        temperature=0.2
     )
 
 
@@ -218,7 +218,7 @@ query = st.text_input("Ask your question:")
 
 if query:
 
-    # ✅ Handle “download” questions first
+    # ✅ Handle download requests first
     if any(x in query.lower() for x in ["download", "file", "get", "send", "share"]):
         match = find_best_matching_file(query)
         if match:
@@ -251,16 +251,47 @@ if query:
 
         context_pipeline = retrieve_docs | prepare_context
 
+        # ✅ ✅ Fixed clean RAG prompt
         prompt = PromptTemplate.from_template("""
-Use ONLY this context to answer the question.  
-Write in **full detailed paragraphs**, clear, structured, and helpful.
+You are an internal AI assistant for Dubizzle Group.
+You must ALWAYS give:
 
-Context:
+✅ Clear
+✅ Detailed
+✅ Structured
+✅ Professional
+✅ Helpful
+✅ Human-like answers
+
+Use the context below to answer the question.
+
+If the context contains the answer:
+- Give a rich, complete explanation
+- Add examples if helpful
+- Organize the answer in sections
+
+If the answer is partially in the context:
+- Combine what is available
+- Fill missing pieces logically
+
+If the context is empty:
+- Say: “The internal documents do not contain this information.”
+- Then give a general helpful answer.
+
+NEVER give short answers.
+NEVER say “I don’t know” instantly.
+
+=====================================
+CONTEXT:
 {context}
+=====================================
 
-Question: {question}
+QUESTION:
+{question}
 
-Answer:
+=====================================
+
+DETAILED ANSWER:
 """)
 
         chain = (
