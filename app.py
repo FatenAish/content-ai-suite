@@ -62,32 +62,19 @@ main .block-container { padding-top: 0rem !important; }
 # HEADER
 # =========================================================
 st.markdown("""
-<div class="header-title">
-    <span class="red">Dubizzle</span> <span class="green">Group</span> AI Content Lab – Internal RAG
+<div style="text-align:center; margin-top:10px;">
+    <span style="font-size:36px; font-weight:900; color:#D92C27;">
+        Dubizzle Group AI Lab
+    </span>
+    <span style="font-size:36px; font-weight:900; color:#111;">
+        – Internal RAG
+    </span>
 </div>
-<div class="sub">Internal AI-powered knowledge system for Bayut & Dubizzle teams</div>
+
+<div style="text-align:center; font-size:15px; color:#555;">
+    Internal AI-powered knowledge system for Bayut & Dubizzle teams
+</div>
 """, unsafe_allow_html=True)
-
-# =========================================================
-# FILE DOWNLOAD HELPER
-# =========================================================
-def find_best_matching_file(query, folder="data"):
-    if not os.path.isdir(folder):
-        return None
-
-    files = [f for f in os.listdir(folder) if f != "faiss_store"]
-    if not files:
-        return None
-
-    best = difflib.get_close_matches(query.lower(), [f.lower() for f in files], n=1, cutoff=0.3)
-    if not best:
-        return None
-
-    for f in files:
-        if f.lower() == best[0]:
-            return os.path.join(folder, f)
-
-    return None
 
 
 # =========================================================
