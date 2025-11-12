@@ -4,7 +4,8 @@ import pandas as pd
 import streamlit as st
 import difflib
 import chardet
-from langchain_core.documents import Document  # ✅ For XLSX loader
+from uuid import uuid4
+from langchain_core.documents import Document  # For XLSX loader
 
 # =========================================================
 # PAGE CONFIG
@@ -107,12 +108,12 @@ def get_embeddings():
     return HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 
 def get_local_llm():
-    # ⚠️ LLM is only formatting the answer; all knowledge comes from CONTEXT below.
+    # Knowledge comes ONLY from {context}; model just formats it.
     return ChatGroq(
         api_key=os.getenv("GROQ_API_KEY"),
         model="llama-3.1-8b-instant",
-        temperature=0.0,     # more deterministic
-        top_p=0.0            # extra-tight to avoid creative guesses
+        temperature=0.0,
+        top_p=0.0
     )
 
 # =========================================================
@@ -172,6 +173,22 @@ def load_faiss():
     return FAISS.load_local(INDEX_DIR, get_embeddings(), allow_dangerous_deserialization=True)
 
 # =========================================================
+# RESET CALLBACK (clears chat & input, then hard-reruns)
+# =========================================================
+def _reset_app():
+    st.session_state.pop("rag_history", None)
+    if "user_q" in st.session_state:
+        del st.session_state["user_q"]
+    try:
+        st.query_params["nonce"] = str(uuid4())  # nudge URL for full refresh
+    except Exception:
+        pass
+    try:
+        st.rerun()
+    except Exception:
+        st.experimental_rerun()
+
+# =========================================================
 # LOAD VECTORSTORE
 # =========================================================
 if faiss_exists():
@@ -192,13 +209,13 @@ else:
 if "rag_history" not in st.session_state:
     st.session_state["rag_history"] = []
 
-# Render past conversation
+# Render history
 for q, a in st.session_state["rag_history"]:
     st.markdown(f"<div class='bubble user'>{q}</div>", unsafe_allow_html=True)
     st.markdown(f"<div class='bubble ai'>{a}</div>", unsafe_allow_html=True)
 
 # =========================================================
-# USER QUESTION (bind to a key so we can clear it)
+# USER QUESTION (bind a key to allow reset)
 # =========================================================
 query = st.text_input("Ask your question:", key="user_q")
 
@@ -212,7 +229,7 @@ with mid:
     with c1:
         b1 = st.button("🔄 Rebuild Index", use_container_width=True)
     with c2:
-        b2 = st.button("🧹 Clear Chat", use_container_width=True)
+        st.button("🧹 Clear Chat", use_container_width=True, on_click=_reset_app)  # ✅ no direct state set
 
 # Actions
 if b1:
@@ -222,18 +239,12 @@ if b1:
     st.success("✅ Index cleared. Refresh the page.")
     st.stop()
 
-if b2:
-    # ✅ Fully clear chat + input
-    st.session_state["rag_history"] = []
-    st.session_state["user_q"] = ""
-    st.rerun()
-
 # =========================================================
 # ANSWERING (STRICTLY FROM CONTEXT)
 # =========================================================
 if query:
 
-    # -------- File download intent ------
+    # -------- Optional: file download intent ------
     if any(x in query.lower() for x in ["download", "file", "get", "send", "share"]):
         match = find_best_matching_file(query)
         if match:
@@ -251,7 +262,7 @@ if query:
             st.stop()
 
     with st.spinner("Thinking…"):
-        # Retrieve
+        # Retrieve strictly from your FAISS index
         hits = vectorstore.similarity_search_with_score(query, k=3)
         retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
 
@@ -259,7 +270,6 @@ if query:
         retrieve_docs = extract_q | retriever
 
         def join_context(docs):
-            # join top docs; if empty, return empty string
             return "\n\n".join(d.page_content[:1800] for d in docs) if docs else ""
 
         prepare_context = RunnableLambda(join_context)
