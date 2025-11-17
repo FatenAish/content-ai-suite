@@ -18,12 +18,41 @@ st.markdown("""
 <style>
 [data-testid="stVerticalBlock"] > div { background: transparent !important; box-shadow:none!important; padding:0!important;margin:0!important;}
 main .block-container { padding-top:0rem !important;}
-.bubble {padding:12px 16px;border-radius:14px;margin:6px 0;max-width:85%;line-height:1.6;font-size:15px;}
+
+.bubble {
+    padding:12px 16px;
+    border-radius:14px;
+    margin:6px 0;
+    max-width:85%;
+    line-height:1.6;
+    font-size:15px;
+}
 .bubble.user {background:#f2f2f2;margin-left:auto;}
 .bubble.ai {background:#ffffff;margin-right:auto;}
-.evidence {background:#fafafa;border:1px solid #e5e7eb;border-radius:12px;padding:10px;margin:10px 0;font-size:13px;white-space:pre-wrap;}
+
+.evidence {
+    background:#fafafa;
+    border:1px solid #e5e7eb;
+    border-radius:12px;
+    padding:10px;
+    margin:10px 0;
+    font-size:13px;
+    white-space:pre-wrap;
+}
+
+.sidebar-label {
+    font-size: 16px;
+    padding: 6px 0;
+    font-weight: 600;
+}
+
+.sidebar-general { color:#000000; }
+.sidebar-bayut { color:#008060; }
+.sidebar-dubizzle { color:#D92C27; }
+
 </style>
 """, unsafe_allow_html=True)
+
 
 # ---------------- Header ----------------
 st.markdown("""
@@ -35,11 +64,25 @@ Fast internal knowledge search powered by internal content.
 </p>
 """, unsafe_allow_html=True)
 
-# ---------------- Sidebar Tool Selector ----------------
-tool = st.sidebar.selectbox(
-    "Select a tool",
-    ["General Tool", "Bayut Tool", "Dubizzle Tool"]
+
+# ---------------- Sidebar ----------------
+st.sidebar.markdown("#### Select an option")
+
+tool = st.sidebar.radio(
+    "",
+    ["General", "Bayut", "Dubizzle"],
+    key="tool_selection"
 )
+
+# Style options visually
+if tool == "General":
+    st.sidebar.markdown("<p class='sidebar-label sidebar-general'>General</p>", unsafe_allow_html=True)
+elif tool == "Bayut":
+    st.sidebar.markdown("<p class='sidebar-label sidebar-bayut'>Bayut</p>", unsafe_allow_html=True)
+elif tool == "Dubizzle":
+    st.sidebar.markdown("<p class='sidebar-label sidebar-dubizzle'>Dubizzle</p>", unsafe_allow_html=True)
+
+
 
 # ---------------- File + Vectorstore Paths ----------------
 DATA_DIR = "data"
@@ -97,7 +140,7 @@ def load_document(path: str):
         if ext == ".docx": return Docx2txtLoader(path).load()
         if ext in [".txt", ".md"]: return TextLoader(path, autodetect_encoding=True).load()
         if ext == ".csv":
-            for enc in ["utf-8", "utf-8-sig", "cp1256", "windows-1256", None]:
+            for enc in ["utf-8","utf-8-sig","cp1256","windows-1256",None]:
                 try: return CSVLoader(path, encoding=enc).load()
                 except: continue
             return []
@@ -156,18 +199,18 @@ if "rag_history" not in st.session_state:
     st.session_state["rag_history"] = []
 
 
-# ---------------- Main Assistant UI ----------------
+# ---------------- Main Interface ----------------
 st.write(f"### {tool}")
 
-# History
 for q, a in st.session_state["rag_history"]:
     st.markdown(f"<div class='bubble user'>{q}</div>", unsafe_allow_html=True)
     st.markdown(f"<div class='bubble ai'>{a}</div>", unsafe_allow_html=True)
 
-# Input
+
 query = st.text_input("Ask your question:")
 
-# Buttons Centered
+
+# ---- Buttons Centered & Close Together ----
 col1, col2, col3 = st.columns([1,1,1])
 with col1:
     rebuild = st.button("Rebuild Index")
@@ -176,13 +219,14 @@ with col2:
 with col3:
     st.button("Reload", on_click=_reload)
 
+
 if rebuild:
     shutil.rmtree(INDEX_DIR)
     st.cache_resource.clear()
     st.rerun()
 
 
-# ---------------- Logic ----------------
+# ---------------- Assistant Logic ----------------
 if query:
 
     if any(w in query.lower() for w in ["download","file","send","share"]):
@@ -194,6 +238,7 @@ if query:
         else:
             st.error("No file found.")
         st.stop()
+
 
     with st.spinner("Thinking…"):
 
