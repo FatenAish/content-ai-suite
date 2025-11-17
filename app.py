@@ -196,7 +196,7 @@ if query and vectorstore:
 
     llm = get_local_llm()
 
-    # Ask model to return pure JSON, not formatted text
+    # Ask model to return JSON with BOTH short_answer and at least one detail
     prompt = f"""
 You are the Bayut & Dubizzle internal knowledge assistant.
 Use ONLY the internal content in CONTEXT.
@@ -205,13 +205,14 @@ Your task:
 - Read CONTEXT.
 - If the answer exists, produce a JSON object with:
   - "short_answer": one direct sentence answering the question.
-  - "details": a list of 1–3 short explanation strings (can be empty list if not needed).
+  - "details": a list of 1–3 short explanation strings. This list MUST contain at least one item when the answer exists.
   - "source": short reference to document name or date, if visible in context. Empty string if unknown.
 
 - If the answer does NOT exist in CONTEXT, return exactly this JSON:
   {{"short_answer": "This information is not available in internal content.", "details": [], "source": ""}}
 
-Output rules:
+Very important:
+- When "short_answer" is not "This information is not available in internal content.", "details" must NOT be empty.
 - Output JSON ONLY. No markdown, no extra text, no explanation.
 - JSON must be valid and parseable by Python json.loads().
 
@@ -236,7 +237,6 @@ JSON ANSWER:
     try:
         data = json.loads(raw_text)
     except Exception:
-        # fallback if model misbehaves
         data = {
             "short_answer": raw_text.strip(),
             "details": [],
@@ -250,27 +250,23 @@ JSON ANSWER:
     details = [str(d).strip() for d in details if str(d).strip()]
     source = str(data.get("source", "")).strip()
 
-    # ---------- Build answer in your requested style ----------
+    # ---------- Build answer EXACTLY in your style ----------
     lines = []
 
-    # Short Answer block
+    # Always show Short Answer line
     if short_answer:
         lines.append("Short Answer:")
         lines.append(short_answer)
         lines.append("")  # blank line
 
-    # Details block (join all detail sentences into one paragraph)
+    # Details block: show only if we have at least one detail
     if details:
         lines.append("Details:")
-        # join details into a single paragraph separated by spaces
         details_text = " ".join(details)
         lines.append(details_text)
         lines.append("")
 
-    # Optional source
-    if source:
-        lines.append("Source:")
-        lines.append(source)
+    # (Source is not shown anymore in the bubble – you can re-add if you want)
 
     formatted = "\n".join(lines).strip()
     if not formatted:
