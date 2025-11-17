@@ -26,14 +26,20 @@ main .block-container { padding-top:0rem !important;}
 """, unsafe_allow_html=True)
 
 # ---------------- Header ----------------
-st.markdown("<h1 style='text-align:center; font-weight:900; margin-bottom:0;'>Bayut & Dubizzle AI Content Assistant</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align:center; color:#555; margin-top:-5px;'>Fast internal knowledge search powered by internal content.</p>", unsafe_allow_html=True)
+st.markdown("""
+<h1 style='text-align:center; font-weight:900; margin-bottom:0; color:#008060;'>
+Bayut & Dubizzle AI Content Assistant
+</h1>
+<p style='text-align:center; color:#555; margin-top:-6px;'>
+Fast internal knowledge search powered by internal content.
+</p>
+""", unsafe_allow_html=True)
 
 # ---------------- Tools (Tabs) ----------------
 tab_general, tab_bayut, tab_dubizzle = st.tabs([
-    "🧠 General Tool",
-    "🏡 Bayut Tool",
-    "🚗 Dubizzle Tool"
+    "General Tool",
+    "Bayut Tool",
+    "Dubizzle Tool"
 ])
 
 # ---------------- File + Vectorstore Paths ----------------
@@ -80,8 +86,6 @@ def get_local_llm():
     if os.getenv("USE_DUMMY_LLM", "0") == "1":
         return DummyLLM()
     from langchain_groq import ChatGroq
-        # If you need dynamic edits, put the prompt variable here
-    
     return ChatGroq(api_key=os.getenv("GROQ_API_KEY"), model="llama-3.1-8b-instant", temperature=0.0, top_p=0.0)
 
 
@@ -128,13 +132,10 @@ def save_faiss(store): store.save_local(INDEX_DIR)
 def load_faiss(): return FAISS.load_local(INDEX_DIR, get_embeddings(), allow_dangerous_deserialization=True)
 
 
-def _reload():
-    st.rerun()
-
-
+def _reload(): st.rerun()
 def _reset():
     st.session_state.pop("rag_history", None)
-    _reload()
+    st.rerun()
 
 
 # ---------------- Load or Build DB ----------------
@@ -159,31 +160,29 @@ def assistant(tab, key):
 
     with tab:
 
-        # Show history
+        # History
         for q, a in st.session_state["rag_history"]:
             st.markdown(f"<div class='bubble user'>{q}</div>", unsafe_allow_html=True)
             st.markdown(f"<div class='bubble ai'>{a}</div>", unsafe_allow_html=True)
 
-        # Input
         query = st.text_input("Ask your question:", key=f"text_{key}")
 
-        # Buttons
         col1, col2, col3 = st.columns([1,1,1])
         with col1:
-            r = st.button("🔄 Rebuild Index", key=f"rebuild_{key}")
+            rebuild = st.button("Rebuild Index", key=f"rebuild_{key}")
         with col2:
-            st.button("🧹 Clear Chat", key=f"clear_{key}", on_click=_reset)
+            st.button("Clear Chat", key=f"clear_{key}", on_click=_reset)
         with col3:
-            st.button("🔁 Reload", key=f"reload_{key}", on_click=_reload)
+            st.button("Reload", key=f"reload_{key}", on_click=_reload)
 
-        if r:
+        if rebuild:
             shutil.rmtree(INDEX_DIR)
             st.cache_resource.clear()
-            st.stop()
+            st.rerun()
 
-        # Logic
         if query:
-            # File Requests
+
+            # File request detection
             if any(w in query.lower() for w in ["download","file","send","share"]):
                 file = find_best_matching_file(query)
                 if file:
@@ -200,8 +199,7 @@ def assistant(tab, key):
                 extract = RunnableLambda(lambda x: x["question"])
                 docsearch = extract | retriever
 
-                def join(docs):
-                    return "\n\n".join(d.page_content[:1800] for d in docs)
+                def join(docs): return "\n\n".join(d.page_content[:1800] for d in docs)
 
                 context = docsearch | RunnableLambda(join)
 
@@ -229,14 +227,11 @@ ANSWER (STRICTLY FROM CONTEXT):
 
                 answer = chain.invoke({"question": query})
 
-                # Save
                 st.session_state["rag_history"].append((query, answer))
 
-                # Show message
                 st.markdown(f"<div class='bubble user'>{query}</div>", unsafe_allow_html=True)
                 st.markdown(f"<div class='bubble ai'>{answer}</div>", unsafe_allow_html=True)
 
-                # Evidence
                 hits = vectorstore.similarity_search_with_score(query, k=3)
                 if hits:
                     st.markdown("### Evidence")
