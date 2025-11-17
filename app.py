@@ -72,10 +72,11 @@ Fast internal knowledge search powered by internal content.
 </p>
 """, unsafe_allow_html=True)
 
-# ---------------- Sidebar ----------------
+# ---------------- Sidebar (tool selector) ----------------
 st.sidebar.markdown("#### Select an option")
 tool = st.sidebar.radio("", ["General", "Bayut", "Dubizzle"])
 
+# Dynamic colors
 theme_color = "#000000"
 if tool == "Bayut":
     theme_color = "#008060"
@@ -84,9 +85,10 @@ elif tool == "Dubizzle":
 
 st.markdown(get_theme_css(theme_color), unsafe_allow_html=True)
 
-# Tool-specific keys for history
+# ---- Tool-specific state keys ----
 history_key = f"history_{tool}"
-last_query_key = f"last_processed_query_{tool}"
+last_query_key = f"last_query_{tool}"
+query_input_key = f"query_input_{tool}"
 
 # ---------------- Paths ----------------
 DATA_DIR = "data"
@@ -176,27 +178,28 @@ else:
     if vectorstore:
         vectorstore.save_local(INDEX_DIR)
 
-# ---------------- Session state (per tool) ----------------
+# ---------------- Session state per tool ----------------
 if history_key not in st.session_state:
-    st.session_state[history_key] = []          # list of {"q":..., "a":...}
+    st.session_state[history_key] = []   # list of {"q":..., "a":...}
 if last_query_key not in st.session_state:
     st.session_state[last_query_key] = ""
 
 # ---------------- UI: tool title ----------------
 st.write(f"### {tool}")
 
-# ---------------- Question box ----------------
-query = st.text_input("Ask your question:")
+# ---------------- Question box (per tool key) ----------------
+query = st.text_input("Ask your question:", key=query_input_key)
 
-# Detect a new question (so we don't answer the same text twice per tool)
+# Detect *new* question for this tool
 is_new_question = (
     query
     and query.strip()
     and query != st.session_state[last_query_key]
 )
 
-# ---------------- Run RAG only when we have a NEW query ----------------
+# ---------------- Run RAG only when we have a NEW question ----------------
 if is_new_question and vectorstore:
+
     retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
     docs = retriever.invoke(query)
 
@@ -208,13 +211,12 @@ if is_new_question and vectorstore:
 
     llm = get_local_llm()
 
-    # Build short chat history for THIS TOOL only (last 5 turns)
+    # Build short chat history *for this tool only* (last 5 turns)
     history_snippets = []
     for h in st.session_state[history_key][-5:]:
         history_snippets.append(f"User: {h['q']}\nAssistant: {h['a']}")
     history_text = "\n\n".join(history_snippets) if history_snippets else "No previous conversation."
 
-    # Model returns JSON: short_answer + optional details[]
     prompt = f"""
 You are the Bayut & Dubizzle internal knowledge assistant.
 Use ONLY the internal content in CONTEXT plus the CHAT HISTORY.
@@ -229,7 +231,7 @@ NEW QUESTION:
 {query}
 
 Your task:
-- If the answer exists in CONTEXT and/or is implied by the previous answers in CHAT HISTORY,
+- If the answer exists in CONTEXT and/or is implied by previous answers in CHAT HISTORY,
   produce a JSON object with:
   - "short_answer": one direct sentence answering the question.
   - "details": a list of 0–3 short explanation strings (optional).
@@ -247,16 +249,14 @@ Style rules:
 Output rules:
 - Output JSON ONLY. No markdown, no labels, no explanation.
 - JSON must be valid and parseable by Python json.loads().
+
 JSON ANSWER:
 """
 
     resp = llm.invoke(prompt)
 
     # ChatGroq returns an AIMessage; get .content safely
-    if hasattr(resp, "content"):
-        raw_text = resp.content
-    else:
-        raw_text = str(resp)
+    raw_text = resp.content if hasattr(resp, "content") else str(resp)
 
     # Try to parse JSON
     try:
@@ -289,7 +289,7 @@ JSON ANSWER:
     if not formatted:
         formatted = "Short Answer:\nThis information is not available in internal content."
 
-    # Save to history for THIS TOOL
+    # Save to history FOR THIS TOOL ONLY
     st.session_state[history_key].append({"q": query, "a": formatted})
     st.session_state[last_query_key] = query
 
@@ -305,7 +305,7 @@ for item in reversed(st.session_state[history_key]):
     )
 
 # ---------------- Buttons row (bottom) ----------------
-st.write("")  # small spacer
+st.write("")  # spacer
 left, col1, col2, col3, right = st.columns([2, 1, 1, 1, 2])
 
 with col1:
@@ -315,21 +315,29 @@ with col2:
 with col3:
     b3 = st.button("Reload")
 
+# Rebuild index: clear FAISS + all histories, then rerun
 if b1:
     shutil.rmtree(INDEX_DIR, ignore_errors=True)
     st.cache_resource.clear()
-    # clear histories for all tools, to be safe
     for t in ["General", "Bayut", "Dubizzle"]:
         hk = f"history_{t}"
-        lk = f"last_processed_query_{t}"
+        lk = f"last_query_{t}"
         st.session_state[hk] = []
         st.session_state[lk] = ""
-    st.success("Index cleared. Refresh the page.")
+        qk = f"query_input_{t}"
+        if qk in st.session_state:
+            st.session_state[qk] = ""
+    st.success("Index cleared. Refreshing…")
+    st.rerun()
 
+# Clear Chat: ONLY current tool, immediate rerun
 if b2:
-    # clear ONLY current tool chat
     st.session_state[history_key] = []
     st.session_state[last_query_key] = ""
+    if query_input_key in st.session_state:
+        st.session_state[query_input_key] = ""
+    st.rerun()
 
+# Reload button = simple rerun
 if b3:
     st.rerun()
