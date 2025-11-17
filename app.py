@@ -224,25 +224,19 @@ for q,a in st.session_state["rag_history"]:
 query = st.text_input("Ask your question:")
 
 
-# ---------------- Center aligned buttons ----------------
-st.markdown('<div class="center-row">', unsafe_allow_html=True)
-b1 = st.button("Rebuild Index")
-b2 = st.button("Clear Chat")
-b3 = st.button("Reload")
-st.markdown('</div>', unsafe_allow_html=True)
+# ----------- BUTTONS (Guaranteed Horizontal + Centered) -----------
 
+# Create 3 equal columns in the center
+col_spacer_left, col1, col2, col3, col_spacer_right = st.columns([2,1,1,1,2])
 
-if b1:
-    shutil.rmtree(INDEX_DIR)
-    st.cache_resource.clear()
-    st.rerun()
+with col1:
+    b1 = st.button("Rebuild Index")
 
-if b2:
-    reset_app()
+with col2:
+    b2 = st.button("Clear Chat")
 
-if b3:
-    st.rerun()
-
+with col3:
+    b3 = st.button("Reload")
 
 
 # ---------------- Run Query ----------------
