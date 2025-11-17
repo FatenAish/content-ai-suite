@@ -7,18 +7,33 @@ import shutil
 import difflib
 import pandas as pd
 import streamlit as st
-from uuid import uuid4
 from langchain_core.documents import Document
+from uuid import uuid4
+
 
 # ---------------- Page config ----------------
-st.set_page_config(page_title="Bayut & Dubizzle AI Content Assistant", layout="wide")
+st.set_page_config(
+    page_title="Bayut & Dubizzle AI Content Assistant",
+    layout="wide"
+)
+
 
 # ---------------- CSS ----------------
 st.markdown("""
 <style>
-[data-testid="stVerticalBlock"] > div { background: transparent !important; box-shadow:none!important; padding:0!important; margin:0!important; }
-main .block-container { padding-top:0rem !important; }
 
+[data-testid="stVerticalBlock"] > div {
+    background: transparent !important;
+    box-shadow:none!important;
+    padding:0!important;
+    margin:0!important;
+}
+
+main .block-container {
+    padding-top:0rem !important;
+}
+
+/* Chat bubbles */
 .bubble {
     padding:12px 16px;
     border-radius:14px;
@@ -50,21 +65,20 @@ main .block-container { padding-top:0rem !important; }
 .sidebar-bayut { color:#008060; }
 .sidebar-dubizzle { color:#D92C27; }
 
-/* ---- Button alignment ---- */
-.button-wrapper {
-    text-align:center;
-    margin-top:10px;
-}
-.button-wrapper button {
-    display:inline-block !important;
-    margin-right:14px;
+/* ---------------- BUTTON FIX ---------------- */
+.center-row {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 10px;
 }
 
 </style>
 """, unsafe_allow_html=True)
 
 
-# ---------------- HEADER ----------------
+
+# ---------------- Header ----------------
 st.markdown("""
 <div style='text-align:center; font-size:38px; font-weight:900; margin-bottom:0;'>
     <span style='color:#008060;'>Bayut</span>
@@ -72,13 +86,15 @@ st.markdown("""
     <span style='color:#D92C27;'>Dubizzle</span>
     <span style='color:#000000;'> AI Content Assistant</span>
 </div>
+
 <p style='text-align:center; color:#555; margin-top:-6px; font-size:15px;'>
 Fast internal knowledge search powered by internal content.
 </p>
 """, unsafe_allow_html=True)
 
 
-# ---------------- SIDEBAR ----------------
+
+# ---------------- Sidebar ----------------
 st.sidebar.markdown("#### Select an option")
 
 tool = st.sidebar.radio("", ["General", "Bayut", "Dubizzle"])
@@ -91,9 +107,11 @@ elif tool == "Dubizzle":
     st.sidebar.markdown("<p class='sidebar-label sidebar-dubizzle'>Dubizzle</p>", unsafe_allow_html=True)
 
 
+
 # ---------------- Vectorstore Paths ----------------
 DATA_DIR = "data"
 INDEX_DIR = os.path.join(DATA_DIR, "faiss_store")
+
 
 def find_best_matching_file(query, folder=DATA_DIR):
     if not os.path.isdir(folder): return None
@@ -104,7 +122,8 @@ def find_best_matching_file(query, folder=DATA_DIR):
         if f.lower() == match[0]: return os.path.join(folder, f)
     return None
 
-# ---------------- LangChain ----------------
+
+# ---------------- LangChain RAG ----------------
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader, TextLoader, CSVLoader
@@ -127,9 +146,10 @@ class DummyLLM:
 
 
 def get_local_llm():
-    if os.getenv("USE_DUMMY_LLM", "0") == "1": return DummyLLM()
+    if os.getenv("USE_DUMMY_LLM", "0") == "1": 
+        return DummyLLM()
     from langchain_groq import ChatGroq
-    return ChatGroq(api_key=os.getenv("GROQ_API_KEY"), model="llama-3.1-8b-instant", temperature=0.0, top_p=0.0)
+    return ChatGroq(api_key=os.getenv("GROQ_API_KEY"), model="llama-3.1-8b-instant", temperature=0)
 
 
 def load_document(path):
@@ -139,10 +159,9 @@ def load_document(path):
         if ext == ".docx": return Docx2txtLoader(path).load()
         if ext in [".txt",".md"]: return TextLoader(path,autodetect_encoding=True).load()
         if ext == ".csv":
-            for e in ["utf-8","utf-8-sig","cp1256","windows-1256",None]:
-                try: return CSVLoader(path,encoding=e).load()
+            for enc in ["utf-8", "utf-8-sig", "cp1256", "windows-1256", None]:
+                try: return CSVLoader(path, encoding=enc).load()
                 except: continue
-            return []
         if ext == ".xlsx":
             df = pd.read_excel(path)
             return [Document(page_content=df.to_string(index=False), metadata={"source": path})]
@@ -171,27 +190,31 @@ def build_vectorstore(docs):
     return FAISS.from_documents(chunks,get_embeddings())
 
 
-def _reset():
+def reset_app():
     st.session_state.pop("rag_history",None)
     st.rerun()
 
 
-# ---------------- Load DB ----------------
+
+# ---------------- Load Index ----------------
 if faiss_exists():
     vectorstore = FAISS.load_local(INDEX_DIR,get_embeddings(),allow_dangerous_deserialization=True)
 else:
-    docs=load_default_docs()
+    docs = load_default_docs()
     if not docs:
-        st.error("No documents found in /data.")
+        st.error("No documents in /data folder.")
         st.stop()
-    vectorstore=build_vectorstore(docs)
+    vectorstore = build_vectorstore(docs)
     vectorstore.save_local(INDEX_DIR)
+
 
 
 # ---------------- Chat History ----------------
 if "rag_history" not in st.session_state:
-    st.session_state["rag_history"]=[]
+    st.session_state["rag_history"] = []
 
+
+# ---------------- UI ----------------
 st.write(f"### {tool}")
 
 for q,a in st.session_state["rag_history"]:
@@ -200,36 +223,43 @@ for q,a in st.session_state["rag_history"]:
 
 query = st.text_input("Ask your question:")
 
-# ---- PERFECTLY CENTERED BUTTONS ----
-st.markdown("<div class='button-wrapper'>", unsafe_allow_html=True)
+
+# ---------------- Center aligned buttons ----------------
+st.markdown('<div class="center-row">', unsafe_allow_html=True)
 b1 = st.button("Rebuild Index")
 b2 = st.button("Clear Chat")
 b3 = st.button("Reload")
-st.markdown("</div>", unsafe_allow_html=True)
+st.markdown('</div>', unsafe_allow_html=True)
+
 
 if b1:
     shutil.rmtree(INDEX_DIR)
     st.cache_resource.clear()
     st.rerun()
 
-if b2: _reset()
-if b3: st.rerun()
+if b2:
+    reset_app()
+
+if b3:
+    st.rerun()
 
 
-# ---------------- RUN QUERY ----------------
+
+# ---------------- Run Query ----------------
 if query:
-    with st.spinner("Thinking…"):
-        retriever=vectorstore.as_retriever(search_kwargs={"k":3})
-        extract=RunnableLambda(lambda x:x["question"])
-        docsearch=extract|retriever
 
-        def join(docs): return "\n\n".join(d.page_content[:1800] for d in docs)
+    retriever = vectorstore.as_retriever(search_kwargs={"k":3})
+    extract = RunnableLambda(lambda x: x["question"])
+    docsearch = extract | retriever
 
-        context=docsearch|RunnableLambda(join)
+    def join_docs(docs):
+        return "\n\n".join(d.page_content[:1800] for d in docs)
 
-        prompt=PromptTemplate.from_template("""
+    context = docsearch | RunnableLambda(join_docs)
+
+    prompt = PromptTemplate.from_template("""
 You are an internal assistant. Use ONLY the provided context.
-If the answer is missing, reply: "This information is not available in the internal content."
+If the answer is missing, reply: "This information is not available in internal content."
 
 ==========================
 CONTEXT:
@@ -241,15 +271,16 @@ QUESTION:
 ANSWER (STRICTLY FROM CONTEXT):
 """)
 
-        chain=(
-            {"context":context,"question":RunnablePassthrough()}
-            |prompt
-            |get_local_llm()
-            |StrOutputParser()
-        )
+    chain = (
+        {"context": context, "question": RunnablePassthrough()}
+        | prompt
+        | get_local_llm()
+        | StrOutputParser()
+    )
 
-        answer=chain.invoke({"question":query})
+    answer = chain.invoke({"question": query})
 
-        st.session_state["rag_history"].append((query,answer))
-        st.markdown(f"<div class='bubble user'>{query}</div>",unsafe_allow_html=True)
-        st.markdown(f"<div class='bubble ai'>{answer}</div>",unsafe_allow_html=True)
+    st.session_state["rag_history"].append((query, answer))
+
+    st.markdown(f"<div class='bubble user'>{query}</div>",unsafe_allow_html=True)
+    st.markdown(f"<div class='bubble ai'>{answer}</div>",unsafe_allow_html=True)
