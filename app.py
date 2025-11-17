@@ -5,6 +5,7 @@
 import os
 import shutil
 import difflib
+import json
 import pandas as pd
 import streamlit as st
 from langchain_core.documents import Document
@@ -85,7 +86,7 @@ st.markdown(get_theme_css(theme_color), unsafe_allow_html=True)
 DATA_DIR = "data"
 INDEX_DIR = os.path.join(DATA_DIR, "faiss_store")
 
-# ---------------- Helper: fuzzy file search (if you ever use it) ----------------
+# ---------------- Helper: fuzzy file search (kept for future use) ----------------
 def find_best_matching_file(query: str):
     if not os.path.isdir(DATA_DIR):
         return None
@@ -181,8 +182,6 @@ st.write(f"### {tool}")
 # ---------------- Question box ----------------
 query = st.text_input("Ask your question:")
 
-answer_to_show = None
-
 # ---------------- Run RAG only when we have a query ----------------
 if query and vectorstore:
     retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
@@ -196,58 +195,80 @@ if query and vectorstore:
 
     llm = get_local_llm()
 
+    # Ask model to return pure JSON, not formatted text
     prompt = f"""
 You are the Bayut & Dubizzle internal knowledge assistant.
 Use ONLY the internal content in CONTEXT.
 
-Respond in this exact structure:
+Your task:
+- Read CONTEXT.
+- If the answer exists, produce a JSON object with:
+  - "short_answer": one direct sentence answering the question.
+  - "details": a list of 2 to 5 short bullet-point strings (can be empty list if not needed).
+  - "source": short reference to document name or date, if visible in context. Empty string if unknown.
 
-**Short Answer:**  
-- One direct sentence that answers the question.
+- If the answer does NOT exist in CONTEXT, return exactly this JSON:
+  {{"short_answer": "This information is not available in internal content.", "details": [], "source": ""}}
 
-**Details:**  
-- 2 to 5 short bullet points if more explanation is needed.
-- Keep bullets simple and clear.
+Output rules:
+- Output JSON ONLY. No markdown, no extra text, no explanation.
+- JSON must be valid and parseable by Python json.loads().
 
-**Source:**  
-- If visible, mention document name or date from the context.
-- If not visible, skip the source line.
-
-Rules:
-- Do NOT repeat the question.
-- Do NOT write intro phrases like "According to the document" or "Based on the context".
-- Do NOT use emojis, numbering, or extra decoration.
-- If the context does not contain the answer, reply exactly:
-  "This information is not available in internal content."
-
---------------------
 CONTEXT:
 {context}
---------------------
 
-ANSWER:
+QUESTION:
+{query}
+
+JSON ANSWER:
 """
 
     resp = llm.invoke(prompt)
 
-    # ChatGroq returns a message object; get .content safely
+    # ChatGroq returns an AIMessage; get .content safely
     if hasattr(resp, "content"):
-        raw_answer = resp.content
+        raw_text = resp.content
     else:
-        raw_answer = str(resp)
+        raw_text = str(resp)
 
-    # Clean up formatting
-    answer = raw_answer.strip()
-    if answer.lower().startswith(query.lower()):
-        # remove echoed question if model repeats it
-        answer = answer[len(query):].strip(" :\n")
-    answer = "\n".join(
-        [line.rstrip() for line in answer.splitlines() if line.strip() != ""]
-    )
+    # Try to parse JSON
+    try:
+        data = json.loads(raw_text)
+    except Exception:
+        # fallback if model misbehaves
+        data = {
+            "short_answer": raw_text.strip(),
+            "details": [],
+            "source": ""
+        }
+
+    short_answer = str(data.get("short_answer", "")).strip()
+    details = data.get("details", [])
+    if isinstance(details, str):
+        details = [details] if details.strip() else []
+    details = [str(d).strip() for d in details if str(d).strip()]
+    source = str(data.get("source", "")).strip()
+
+    # Build nicely formatted markdown
+    formatted = ""
+
+    if short_answer:
+        formatted += "**Short Answer:**\n" + short_answer + "\n\n"
+
+    if details:
+        formatted += "**Details:**\n"
+        for d in details:
+            formatted += f"- {d}\n"
+        formatted += "\n"
+
+    if source:
+        formatted += f"**Source:** {source}"
+
+    if not formatted:
+        formatted = "This information is not available in internal content."
 
     st.session_state["last_q"] = query
-    st.session_state["last_a"] = answer
-    answer_to_show = answer
+    st.session_state["last_a"] = formatted
 
 # ---------------- Show answer directly under the question box ----------------
 if st.session_state["last_q"] and st.session_state["last_a"]:
