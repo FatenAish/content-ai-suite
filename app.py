@@ -315,7 +315,7 @@ JSON ANSWER:
         details = [details] if details.strip() else []
     details = [str(d).strip() for d in details if str(d).strip()]
 
-   # ---------- Build answer: Short Answer then Details (with bullets) ----------
+  # ---------- Build answer: Short Answer then Details (with bullets) ----------
 lines = []
 if short_answer:
     lines.append("Short Answer:")
@@ -331,9 +331,10 @@ formatted = "\n".join(lines).strip()
 if not formatted:
     formatted = "Short Answer:\nThis information is not available in internal content."
 
-    # Save to history FOR THIS TOOL ONLY
-    st.session_state[history_key].append({"q": query, "a": formatted})
-    st.session_state[last_query_key] = query
+# Save to history FOR THIS TOOL ONLY
+st.session_state[history_key].append({"q": query, "a": formatted})
+st.session_state[last_query_key] = query
+
 
 # ---------------- Show chat: NEWEST first (per tool) ----------------
 for item in reversed(st.session_state[history_key]):
