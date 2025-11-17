@@ -42,6 +42,7 @@ def get_theme_css(color: str) -> str:
         background: #ffffff;
         border-radius: 6px;
         border: 1px solid #eee;
+        white-space: pre-wrap;
     }}
 
     .stButton>button {{
@@ -204,7 +205,7 @@ Your task:
 - Read CONTEXT.
 - If the answer exists, produce a JSON object with:
   - "short_answer": one direct sentence answering the question.
-  - "details": a list of 2 to 5 short bullet-point strings (can be empty list if not needed).
+  - "details": a list of 1–3 short explanation strings (can be empty list if not needed).
   - "source": short reference to document name or date, if visible in context. Empty string if unknown.
 
 - If the answer does NOT exist in CONTEXT, return exactly this JSON:
@@ -249,23 +250,31 @@ JSON ANSWER:
     details = [str(d).strip() for d in details if str(d).strip()]
     source = str(data.get("source", "")).strip()
 
-    # Build nicely formatted markdown
-    formatted = ""
+    # ---------- Build answer in your requested style ----------
+    lines = []
 
+    # Short Answer block
     if short_answer:
-        formatted += "**Short Answer:**\n" + short_answer + "\n\n"
+        lines.append("Short Answer:")
+        lines.append(short_answer)
+        lines.append("")  # blank line
 
+    # Details block (join all detail sentences into one paragraph)
     if details:
-        formatted += "**Details:**\n"
-        for d in details:
-            formatted += f"- {d}\n"
-        formatted += "\n"
+        lines.append("Details:")
+        # join details into a single paragraph separated by spaces
+        details_text = " ".join(details)
+        lines.append(details_text)
+        lines.append("")
 
+    # Optional source
     if source:
-        formatted += f"**Source:** {source}"
+        lines.append("Source:")
+        lines.append(source)
 
+    formatted = "\n".join(lines).strip()
     if not formatted:
-        formatted = "This information is not available in internal content."
+        formatted = "Short Answer:\nThis information is not available in internal content."
 
     st.session_state["last_q"] = query
     st.session_state["last_a"] = formatted
