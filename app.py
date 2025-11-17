@@ -7,7 +7,6 @@ import shutil
 import difflib
 import pandas as pd
 import streamlit as st
-from uuid import uuid4
 from langchain_core.documents import Document
 
 # ---------------- Page config ----------------
@@ -17,7 +16,7 @@ st.set_page_config(
 )
 
 # ---------------- CSS + Dynamic Theme ----------------
-def get_theme_css(color):
+def get_theme_css(color: str) -> str:
     return f"""
     <style>
     :root {{
@@ -30,11 +29,18 @@ def get_theme_css(color):
 
     .bubble.user {{
         border-left: 3px solid var(--theme-color);
-        padding-left: 10px;
+        padding: 8px 12px;
+        margin-top: 10px;
+        background: #f5f5f5;
+        border-radius: 6px;
     }}
 
     .bubble.ai {{
-        padding-left: 10px;
+        padding: 8px 12px;
+        margin-top: 4px;
+        background: #ffffff;
+        border-radius: 6px;
+        border: 1px solid #eee;
     }}
 
     .stButton>button {{
@@ -75,12 +81,12 @@ elif tool == "Dubizzle":
 
 st.markdown(get_theme_css(theme_color), unsafe_allow_html=True)
 
-# ---------------- Vectorstore Paths ----------------
+# ---------------- Paths ----------------
 DATA_DIR = "data"
 INDEX_DIR = os.path.join(DATA_DIR, "faiss_store")
 
-# ---------------- Find Best File ----------------
-def find_best_matching_file(query):
+# ---------------- Helper: fuzzy file search (if you ever use it) ----------------
+def find_best_matching_file(query: str):
     if not os.path.isdir(DATA_DIR):
         return None
     files = [f for f in os.listdir(DATA_DIR) if f != "faiss_store"]
@@ -94,7 +100,7 @@ def find_best_matching_file(query):
             return os.path.join(DATA_DIR, f)
     return None
 
-# ---------------- LangChain RAG ----------------
+# ---------------- LangChain / RAG ----------------
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.document_loaders import (
@@ -111,9 +117,13 @@ def get_embeddings():
 
 def get_local_llm():
     from langchain_groq import ChatGroq
-    return ChatGroq(api_key=os.getenv("GROQ_API_KEY"), model="llama-3.1-8b-instant")
+    return ChatGroq(
+        api_key=os.getenv("GROQ_API_KEY"),
+        model="llama-3.1-8b-instant",
+        temperature=0
+    )
 
-def load_document(path):
+def load_document(path: str):
     ext = os.path.splitext(path)[1].lower()
     try:
         if ext == ".pdf":
@@ -147,8 +157,7 @@ def build_vectorstore():
     chunks = splitter.split_documents(docs)
     return FAISS.from_documents(chunks, get_embeddings())
 
-# ---------------- Load Index ----------------
-vectorstore = None
+# ---------------- Load FAISS index ----------------
 if os.path.exists(INDEX_DIR):
     vectorstore = FAISS.load_local(
         INDEX_DIR,
@@ -160,44 +169,26 @@ else:
     if vectorstore:
         vectorstore.save_local(INDEX_DIR)
 
-# ---------------- Chat History ----------------
-if "rag_history" not in st.session_state:
-    st.session_state["rag_history"] = []
+# ---------------- Session state ----------------
+if "last_q" not in st.session_state:
+    st.session_state["last_q"] = ""
+if "last_a" not in st.session_state:
+    st.session_state["last_a"] = ""
 
-# ---------------- UI ----------------
+# ---------------- UI: tool title ----------------
 st.write(f"### {tool}")
 
-for q, a in st.session_state["rag_history"]:
-    st.markdown(f"<div class='bubble user'>{q}</div>", unsafe_allow_html=True)
-    st.markdown(f"<div class='bubble ai'>{a}</div>", unsafe_allow_html=True)
-
+# ---------------- Question box ----------------
 query = st.text_input("Ask your question:")
 
-# ----------- BUTTONS -----------
-left, col1, col2, col3, right = st.columns([2, 1, 1, 1, 2])
+answer_to_show = None
 
-with col1:
-    b1 = st.button("Rebuild Index")
-with col2:
-    b2 = st.button("Clear Chat")
-with col3:
-    b3 = st.button("Reload")
-
-if b1:
-    shutil.rmtree(INDEX_DIR, ignore_errors=True)
-    st.cache_resource.clear()
-    st.success("Index cleared. Refresh page.")
-
-if b2:
-    st.session_state["rag_history"] = []
-
-if b3:
-    st.rerun()
-
-# ---------------- Run Query ----------------
+# ---------------- Run RAG only when we have a query ----------------
 if query and vectorstore:
     retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
     docs = retriever.invoke(query)
+
+    # newer LC sometimes returns dict with "documents"
     if isinstance(docs, dict) and "documents" in docs:
         docs = docs["documents"]
 
@@ -207,7 +198,7 @@ if query and vectorstore:
 
     prompt = f"""
 You are the Bayut & Dubizzle internal knowledge assistant.
-Use ONLY the internal content provided in CONTEXT.
+Use ONLY the internal content in CONTEXT.
 
 Respond in this exact structure:
 
@@ -224,7 +215,7 @@ Respond in this exact structure:
 
 Rules:
 - Do NOT repeat the question.
-- Do NOT write intro phrases like "According to" or "Based on the documents".
+- Do NOT write intro phrases like "According to the document" or "Based on the context".
 - Do NOT use emojis, numbering, or extra decoration.
 - If the context does not contain the answer, reply exactly:
   "This information is not available in internal content."
@@ -237,21 +228,59 @@ CONTEXT:
 ANSWER:
 """
 
-    raw_answer = llm.invoke(prompt)
+    resp = llm.invoke(prompt)
 
-    # -------- Clean up formatting --------
+    # ChatGroq returns a message object; get .content safely
+    if hasattr(resp, "content"):
+        raw_answer = resp.content
+    else:
+        raw_answer = str(resp)
+
+    # Clean up formatting
     answer = raw_answer.strip()
-
-    # Remove echoed question if the model repeats it
     if answer.lower().startswith(query.lower()):
+        # remove echoed question if model repeats it
         answer = answer[len(query):].strip(" :\n")
-
-    # Remove empty lines and trailing spaces
     answer = "\n".join(
         [line.rstrip() for line in answer.splitlines() if line.strip() != ""]
     )
 
-    # Store + display
-    st.session_state["rag_history"].append((query, answer))
-    st.markdown(f"<div class='bubble user'>{query}</div>", unsafe_allow_html=True)
-    st.markdown(f"<div class='bubble ai'>{answer}</div>", unsafe_allow_html=True)
+    st.session_state["last_q"] = query
+    st.session_state["last_a"] = answer
+    answer_to_show = answer
+
+# ---------------- Show answer directly under the question box ----------------
+if st.session_state["last_q"] and st.session_state["last_a"]:
+    st.markdown(
+        f"<div class='bubble user'>{st.session_state['last_q']}</div>",
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        f"<div class='bubble ai'>{st.session_state['last_a']}</div>",
+        unsafe_allow_html=True,
+    )
+
+# ---------------- Buttons row (under answer) ----------------
+st.write("")  # small spacer
+left, col1, col2, col3, right = st.columns([2, 1, 1, 1, 2])
+
+with col1:
+    b1 = st.button("Rebuild Index")
+with col2:
+    b2 = st.button("Clear Chat")
+with col3:
+    b3 = st.button("Reload")
+
+if b1:
+    shutil.rmtree(INDEX_DIR, ignore_errors=True)
+    st.cache_resource.clear()
+    st.session_state["last_q"] = ""
+    st.session_state["last_a"] = ""
+    st.success("Index cleared. Refresh the page.")
+
+if b2:
+    st.session_state["last_q"] = ""
+    st.session_state["last_a"] = ""
+
+if b3:
+    st.rerun()
