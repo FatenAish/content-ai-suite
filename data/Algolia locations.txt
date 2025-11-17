@@ -1,0 +1,157 @@
+﻿Q1: When do we need to add Algolia locations to articles?
+Short Answer:
+ After the article is published.
+Details:
+ Once an article goes live, the content reviewer must ensure the correct Algolia tag is added and logged in the tracking sheet for review history and consistency.
+________________
+
+
+Q2: Which articles require Algolia tagging?
+Short Answer:
+ Any article linked to a specific location.
+Details:
+ If the article focuses on a community, building, city, or region, it requires a location tag. UAE-wide, conceptual, and discussion-based content does not require tagging.
+________________
+
+
+Q3: Who is responsible for adding Algolia locations?
+Short Answer:
+ Writers add tags, reviewers verify them.
+Details:
+ Writers apply Algolia tags during content creation. During weekly review, the checker verifies accuracy and logs tag status. If missing or incorrect, the reviewer requests correction.
+________________
+
+
+Q4: How often should Algolia locations be reviewed?
+Short Answer:
+ Weekly.
+Details:
+ A dedicated weekly review ensures recently published and updated content is tagged correctly and reflects tracking accuracy.
+________________
+
+
+Q5: Where do we log Algolia tagging status?
+Short Answer:
+ In the Algolia tracking Google Sheet.
+Details:
+ All actions must be recorded, including published date, URL, post ID, tag applied, exemption status, and reviewer comments.
+________________
+
+
+Q6: What if an article has no applicable location?
+Short Answer:
+ Mark it as exempt.
+Details:
+ If content applies to the entire UAE or has no geographic focus, record it as "No Location Required" to avoid repeating checks.
+________________
+
+
+Q7: What if the correct location does not exist in the Algolia list?
+Short Answer:
+ Request it to be added.
+Details:
+ Notify the platform owner or responsible party to create the new Algolia entry. Meanwhile, log the article as pending and follow up once available.
+________________
+
+
+Q8: What if a writer forgets to add the location tag?
+Short Answer:
+ Send it back for correction.
+Details:
+ Notify the writer and log the event. Repeat offenders should be flagged to management for workflow retraining.
+________________
+
+
+Q9: Do updated or republished articles need tagging checks?
+Short Answer:
+ Yes, if the content relevance changed.
+Details:
+ Any refreshed or updated article should be reviewed to confirm the current tag is correct. Changes must be logged.
+________________
+
+
+Q10: How do I choose which location to use?
+Short Answer:
+ Select the main focus location.
+Details:
+ Choose the most specific location relevant to the content topic (community → building → city → region). Avoid tagging every location mentioned.
+________________
+
+
+Q11: What if an article references multiple locations?
+Short Answer:
+ Tag only the primary one.
+Details:
+ Only assign a single location unless the article format is specifically a comparison or multi-region guide.
+________________
+
+
+Q12: Should UAE-wide articles be tagged?
+Short Answer:
+ No.
+Details:
+ Articles that apply nationally or broadly across the UAE do not require Algolia tags. They must still be logged as exempt.
+________________
+
+
+Q13: Should discussion-style articles be tagged?
+Short Answer:
+ No.
+Details:
+ If the content isn't tied to a specific geographic area, tagging is not needed. Still record exemption.
+________________
+
+
+Q14: What if I’m unsure which location applies?
+Short Answer:
+ Ask the content lead.
+Details:
+ If unclear, pause tagging, log the article, and consult the assigned content owner or team lead for verification.
+________________
+
+
+Q15: What happens when tagging is completely missed?
+Short Answer:
+ It must be corrected.
+Details:
+ Add the missing tag during review and document the update. Persistent oversight should be escalated.
+________________
+
+
+Q16: Should I notify someone when I correct a missed tag?
+Short Answer:
+ Yes, if repeated.
+Details:
+ Occasional errors are corrected quietly, but repeated issues should be flagged with evidence to a manager for process adjustment.
+________________
+
+
+Q17: Why do we maintain a tracking sheet?
+Short Answer:
+ For visibility and quality control.
+Details:
+ It prevents duplicate checks, enables auditing, tracks missed or pending items, and ensures accountability across the content workflow.
+________________
+
+
+Q18: Can I change or delete previous tracking entries?
+Short Answer:
+ No.
+Details:
+ The tracking sheet maintains a history of actions. If updates are required, add a new entry or update status without deleting original logs.
+________________
+
+
+Q19: Do old articles need tagging checks?
+Short Answer:
+ Yes, if they fall under location-based topics.
+Details:
+ Legacy relevant articles must be reviewed and updated in cycles. Progress should be documented until coverage is complete.
+________________
+
+
+Q20: What if the WordPress location tag is incorrect?
+Short Answer:
+ Fix it.
+Details:
+ Correct the tag in WordPress and update the tracking sheet. If tagging errors repeat for the same content source, escalate.
