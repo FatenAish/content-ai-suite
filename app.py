@@ -26,7 +26,7 @@ def get_theme_css(color):
         --theme-color: {color};
     }}
 
-    h1, h2, h3, h4, label {{
+    h2, h3, h4, label {{
         color: var(--theme-color) !important;
     }}
 
@@ -67,9 +67,8 @@ st.sidebar.markdown("#### Select an option")
 
 tool = st.sidebar.radio("", ["General", "Bayut", "Dubizzle"])
 
-# Theme selection
-theme_color = "#000000"  # default neutral
-
+# Theme logic
+theme_color = "#000000"  # neutral
 if tool == "Bayut":
     theme_color = "#008060"
 elif tool == "Dubizzle":
@@ -77,27 +76,9 @@ elif tool == "Dubizzle":
 
 st.markdown(get_theme_css(theme_color), unsafe_allow_html=True)
 
-# ---------------- File Upload Section ----------------
-st.sidebar.write("#### Upload Content")
-
-uploaded_files = st.sidebar.file_uploader(
-    "Upload PDF, DOCX, TXT, CSV, XLSX",
-    accept_multiple_files=True,
-    type=["pdf", "docx", "txt", "csv", "xlsx"]
-)
-
-
-DATA_DIR = "data"
-os.makedirs(DATA_DIR, exist_ok=True)
-
-if uploaded_files:
-    for file in uploaded_files:
-        with open(os.path.join(DATA_DIR, file.name), "wb") as f:
-            f.write(file.read())
-    st.sidebar.success("Files uploaded successfully. Click 'Rebuild Index'.")
-
 
 # ---------------- Vectorstore Paths ----------------
+DATA_DIR = "data"
 INDEX_DIR = os.path.join(DATA_DIR, "faiss_store")
 
 
@@ -120,8 +101,8 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader, TextLoader, CSVLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.prompts import PromptTemplate
-from langchain_core.runnables import RunnablePassthrough, RunnableLambda
 from langchain_core.output_parsers import StrOutputParser
+from langchain_core.runnables import RunnablePassthrough, RunnableLambda
 
 
 @st.cache_resource
@@ -144,7 +125,7 @@ def load_document(path):
     try:
         if ext == ".pdf": return PyPDFLoader(path).load()
         if ext == ".docx": return Docx2txtLoader(path).load()
-        if ext in [".txt", ".md"]: return TextLoader(path).load()
+        if ext in [".txt",".md"]: return TextLoader(path).load()
         if ext == ".csv": return CSVLoader(path).load()
         if ext == ".xlsx":
             df = pd.read_excel(path)
@@ -154,7 +135,6 @@ def load_document(path):
         return []
 
 
-@st.cache_resource
 def build_vectorstore():
     docs = []
     for f in os.listdir(DATA_DIR):
@@ -166,7 +146,7 @@ def build_vectorstore():
     return FAISS.from_documents(chunks, get_embeddings())
 
 
-# ---------------- Load or Build Index ----------------
+# ---------------- Load FAISS Index ----------------
 vectorstore = None
 if os.path.exists(INDEX_DIR):
     vectorstore = FAISS.load_local(INDEX_DIR, get_embeddings(), allow_dangerous_deserialization=True)
@@ -180,17 +160,21 @@ else:
 if "rag_history" not in st.session_state:
     st.session_state["rag_history"] = []
 
+
+# ---------------- UI ----------------
 st.write(f"### {tool}")
 
+# Display previous chat
 for q, a in st.session_state["rag_history"]:
     st.markdown(f"<div class='bubble user'>{q}</div>", unsafe_allow_html=True)
     st.markdown(f"<div class='bubble ai'>{a}</div>", unsafe_allow_html=True)
 
 
+# Input box
 query = st.text_input("Ask your question:")
 
 
-# -------- Buttons (horizontal centered layout) --------
+# ----------- BUTTONS (Horizontal Centered Layout) -----------
 left, col1, col2, col3, right = st.columns([2, 1, 1, 1, 2])
 
 with col1:
@@ -213,7 +197,7 @@ if b3:
     st.rerun()
 
 
-# ---------------- Run RAG Query ----------------
+# ---------------- Run Query ----------------
 if query and vectorstore:
 
     retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
@@ -247,5 +231,3 @@ ANSWER:
 
     st.session_state["rag_history"].append((query, answer))
     st.rerun()
-
-
