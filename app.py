@@ -28,17 +28,9 @@ def get_theme_css(color: str) -> str:
         color: var(--theme-color) !important;
     }}
 
-    .bubble.user {{
-        border-left: 3px solid var(--theme-color);
-        padding: 8px 12px;
-        margin-top: 10px;
-        background: #f5f5f5;
-        border-radius: 6px;
-    }}
-
     .bubble.ai {{
         padding: 8px 12px;
-        margin-top: 4px;
+        margin-top: 10px;
         background: #ffffff;
         border-radius: 6px;
         border: 1px solid #eee;
@@ -172,8 +164,6 @@ else:
         vectorstore.save_local(INDEX_DIR)
 
 # ---------------- Session state ----------------
-if "last_q" not in st.session_state:
-    st.session_state["last_q"] = ""
 if "last_a" not in st.session_state:
     st.session_state["last_a"] = ""
 
@@ -196,7 +186,7 @@ if query and vectorstore:
 
     llm = get_local_llm()
 
-    # Model returns JSON: short_answer + details[]
+    # Model returns JSON: short_answer + optional details[]
     prompt = f"""
 You are the Bayut & Dubizzle internal knowledge assistant.
 Use ONLY the internal content in CONTEXT.
@@ -205,7 +195,7 @@ Your task:
 - Read CONTEXT.
 - If the answer exists, produce a JSON object with:
   - "short_answer": one direct sentence answering the question.
-  - "details": a list of 1–3 short explanation strings (optional, can be empty).
+  - "details": a list of 0–3 short explanation strings (optional).
   - "source": short reference to document name or date, if visible in context. Empty string if unknown.
 
 - If the answer does NOT exist in CONTEXT, return exactly this JSON:
@@ -248,31 +238,22 @@ JSON ANSWER:
         details = [details] if details.strip() else []
     details = [str(d).strip() for d in details if str(d).strip()]
 
-    # ---------- Build answer: ONLY text, no labels ----------
+    # ---------- Build answer: ONLY text, no labels, no question ----------
     lines = []
-
     if short_answer:
         lines.append(short_answer)
-
     if details:
-        lines.append("")  # blank line between short answer and details
+        lines.append("")
         lines.append(" ".join(details))
 
     formatted = "\n".join(lines).strip()
     if not formatted:
         formatted = "This information is not available in internal content."
 
-    st.session_state["last_q"] = query
     st.session_state["last_a"] = formatted
 
-# ---------------- Show answer directly under the question box ----------------
-if st.session_state["last_q"] and st.session_state["last_a"]:
-    # grey bubble with the question
-    st.markdown(
-        f"<div class='bubble user'>{st.session_state['last_q']}</div>",
-        unsafe_allow_html=True,
-    )
-    # white bubble with ONLY the answer text
+# ---------------- Show ONLY the answer under the box ----------------
+if st.session_state["last_a"]:
     st.markdown(
         f"<div class='bubble ai'>{st.session_state['last_a']}</div>",
         unsafe_allow_html=True,
@@ -292,12 +273,10 @@ with col3:
 if b1:
     shutil.rmtree(INDEX_DIR, ignore_errors=True)
     st.cache_resource.clear()
-    st.session_state["last_q"] = ""
     st.session_state["last_a"] = ""
     st.success("Index cleared. Refresh the page.")
 
 if b2:
-    st.session_state["last_q"] = ""
     st.session_state["last_a"] = ""
 
 if b3:
