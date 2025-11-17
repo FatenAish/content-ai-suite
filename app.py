@@ -35,16 +35,16 @@ Fast internal knowledge search powered by internal content.
 </p>
 """, unsafe_allow_html=True)
 
-# ---------------- Tools (Tabs) ----------------
-tab_general, tab_bayut, tab_dubizzle = st.tabs([
-    "General Tool",
-    "Bayut Tool",
-    "Dubizzle Tool"
-])
+# ---------------- Sidebar Tool Selector ----------------
+tool = st.sidebar.selectbox(
+    "Select a tool",
+    ["General Tool", "Bayut Tool", "Dubizzle Tool"]
+)
 
 # ---------------- File + Vectorstore Paths ----------------
 DATA_DIR = "data"
 INDEX_DIR = os.path.join(DATA_DIR, "faiss_store")
+
 
 def find_best_matching_file(query, folder=DATA_DIR):
     if not os.path.isdir(folder):
@@ -59,6 +59,7 @@ def find_best_matching_file(query, folder=DATA_DIR):
         if f.lower() == match[0]:
             return os.path.join(folder, f)
     return None
+
 
 # ---------------- LangChain / RAG Components ----------------
 from langchain_community.vectorstores import FAISS
@@ -96,7 +97,7 @@ def load_document(path: str):
         if ext == ".docx": return Docx2txtLoader(path).load()
         if ext in [".txt", ".md"]: return TextLoader(path, autodetect_encoding=True).load()
         if ext == ".csv":
-            for enc in ["utf-8","utf-8-sig","cp1256","windows-1256",None]:
+            for enc in ["utf-8", "utf-8-sig", "cp1256", "windows-1256", None]:
                 try: return CSVLoader(path, encoding=enc).load()
                 except: continue
             return []
@@ -155,55 +156,56 @@ if "rag_history" not in st.session_state:
     st.session_state["rag_history"] = []
 
 
-# ---------------- Main Chat Component ----------------
-def assistant(tab, key):
+# ---------------- Main Assistant UI ----------------
+st.write(f"### {tool}")
 
-    with tab:
+# History
+for q, a in st.session_state["rag_history"]:
+    st.markdown(f"<div class='bubble user'>{q}</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='bubble ai'>{a}</div>", unsafe_allow_html=True)
 
-        # History
-        for q, a in st.session_state["rag_history"]:
-            st.markdown(f"<div class='bubble user'>{q}</div>", unsafe_allow_html=True)
-            st.markdown(f"<div class='bubble ai'>{a}</div>", unsafe_allow_html=True)
+# Input
+query = st.text_input("Ask your question:")
 
-        query = st.text_input("Ask your question:", key=f"text_{key}")
+# Buttons Centered
+col1, col2, col3 = st.columns([1,1,1])
+with col1:
+    rebuild = st.button("Rebuild Index")
+with col2:
+    st.button("Clear Chat", on_click=_reset)
+with col3:
+    st.button("Reload", on_click=_reload)
 
-        col1, col2, col3 = st.columns([1,1,1])
-        with col1:
-            rebuild = st.button("Rebuild Index", key=f"rebuild_{key}")
-        with col2:
-            st.button("Clear Chat", key=f"clear_{key}", on_click=_reset)
-        with col3:
-            st.button("Reload", key=f"reload_{key}", on_click=_reload)
+if rebuild:
+    shutil.rmtree(INDEX_DIR)
+    st.cache_resource.clear()
+    st.rerun()
 
-        if rebuild:
-            shutil.rmtree(INDEX_DIR)
-            st.cache_resource.clear()
-            st.rerun()
 
-        if query:
+# ---------------- Logic ----------------
+if query:
 
-            # File request detection
-            if any(w in query.lower() for w in ["download","file","send","share"]):
-                file = find_best_matching_file(query)
-                if file:
-                    st.success(f"File found: {os.path.basename(file)}")
-                    with open(file,"rb") as f:
-                        st.download_button("Download", f, file_name=os.path.basename(file))
-                else:
-                    st.error("No file found.")
-                st.stop()
+    if any(w in query.lower() for w in ["download","file","send","share"]):
+        file = find_best_matching_file(query)
+        if file:
+            st.success(f"File found: {os.path.basename(file)}")
+            with open(file,"rb") as f:
+                st.download_button("Download", f, file_name=os.path.basename(file))
+        else:
+            st.error("No file found.")
+        st.stop()
 
-            with st.spinner("Thinking…"):
+    with st.spinner("Thinking…"):
 
-                retriever = vectorstore.as_retriever(search_kwargs={"k":3})
-                extract = RunnableLambda(lambda x: x["question"])
-                docsearch = extract | retriever
+        retriever = vectorstore.as_retriever(search_kwargs={"k":3})
+        extract = RunnableLambda(lambda x: x["question"])
+        docsearch = extract | retriever
 
-                def join(docs): return "\n\n".join(d.page_content[:1800] for d in docs)
+        def join(docs): return "\n\n".join(d.page_content[:1800] for d in docs)
 
-                context = docsearch | RunnableLambda(join)
+        context = docsearch | RunnableLambda(join)
 
-                prompt = PromptTemplate.from_template("""
+        prompt = PromptTemplate.from_template("""
 You are an internal content assistant. Use ONLY the provided CONTEXT.
 
 If the answer is not found, reply: "This information is not available in the internal content."
@@ -218,27 +220,22 @@ QUESTION:
 ANSWER (STRICTLY FROM CONTEXT):
 """)
 
-                chain = (
-                    {"context": context, "question":RunnablePassthrough()}
-                    | prompt
-                    | get_local_llm()
-                    | StrOutputParser()
-                )
+        chain = (
+            {"context": context, "question":RunnablePassthrough()}
+            | prompt
+            | get_local_llm()
+            | StrOutputParser()
+        )
 
-                answer = chain.invoke({"question": query})
+        answer = chain.invoke({"question": query})
 
-                st.session_state["rag_history"].append((query, answer))
+        st.session_state["rag_history"].append((query, answer))
 
-                st.markdown(f"<div class='bubble user'>{query}</div>", unsafe_allow_html=True)
-                st.markdown(f"<div class='bubble ai'>{answer}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='bubble user'>{query}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='bubble ai'>{answer}</div>", unsafe_allow_html=True)
 
-                hits = vectorstore.similarity_search_with_score(query, k=3)
-                if hits:
-                    st.markdown("### Evidence")
-                    for i, (doc, score) in enumerate(hits, 1):
-                        st.markdown(f"<div class='evidence'><b>{i}</b> ({score:.3f})\n\n{doc.page_content[:500]}…</div>", unsafe_allow_html=True)
-
-
-assistant(tab_general, "general")
-assistant(tab_bayut, "bayut")
-assistant(tab_dubizzle, "dubizzle")
+        hits = vectorstore.similarity_search_with_score(query, k=3)
+        if hits:
+            st.markdown("### Evidence")
+            for i, (doc, score) in enumerate(hits, 1):
+                st.markdown(f"<div class='evidence'><b>{i}</b> ({score:.3f})\n\n{doc.page_content[:500]}…</div>", unsafe_allow_html=True)
