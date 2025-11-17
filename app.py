@@ -315,20 +315,23 @@ JSON ANSWER:
         details = [details] if details.strip() else []
     details = [str(d).strip() for d in details if str(d).strip()]
 
-    # ---------- Build answer: Short Answer then Details ----------
+   # ---------- Build answer: Short Answer then Details (with bullets) ----------
     lines = []
     if short_answer:
         lines.append("Short Answer:")
         lines.append(short_answer)
+
     if details:
         lines.append("")
         lines.append("Details:")
         for d in details:
-            lines.append(d)
+            # each detail as a bullet point
+            lines.append(f"- {d}")
 
     formatted = "\n".join(lines).strip()
     if not formatted:
         formatted = "Short Answer:\nThis information is not available in internal content."
+
 
     # Save to history FOR THIS TOOL ONLY
     st.session_state[history_key].append({"q": query, "a": formatted})
