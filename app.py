@@ -28,17 +28,9 @@ def get_theme_css(color: str) -> str:
         color: var(--theme-color) !important;
     }}
 
-    .bubble.user {{
-        border-left: 3px solid var(--theme-color);
-        padding: 8px 12px;
-        margin-top: 10px;
-        background: #f5f5f5;
-        border-radius: 6px;
-    }}
-
     .bubble.ai {{
         padding: 8px 12px;
-        margin-top: 4px;
+        margin-top: 10px;
         background: #ffffff;
         border-radius: 6px;
         border: 1px solid #eee;
@@ -181,26 +173,16 @@ if "last_processed_query" not in st.session_state:
 st.write(f"### {tool}")
 
 # ---------------- Question box ----------------
-query = st.text_input("Ask your question:", key="query")
+query = st.text_input("Ask your question:")
 
-# ---------------- Show chat history (oldest -> newest) ----------------
-for item in st.session_state["history"]:
-    st.markdown(
-        f"<div class='bubble user'>{item['q']}</div>",
-        unsafe_allow_html=True,
-    )
-    st.markdown(
-        f"<div class='bubble ai'>{item['a']}</div>",
-        unsafe_allow_html=True,
-    )
-
-# ---------------- Run RAG only when we have a NEW query ----------------
+# Detect a new question (so we don't answer the same text twice)
 is_new_question = (
     query
     and query.strip()
     and query != st.session_state["last_processed_query"]
 )
 
+# ---------------- Run RAG only when we have a NEW query ----------------
 if is_new_question and vectorstore:
     retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
     docs = retriever.invoke(query)
@@ -243,6 +225,12 @@ Your task:
 - If the answer does NOT exist in CONTEXT or CHAT HISTORY, return exactly this JSON:
   {{"short_answer": "This information is not available in internal content.", "details": [], "source": ""}}
 
+Style rules:
+- DO NOT mention "chat history", previous questions, Q1/Q2 etc.
+- Just answer naturally using the information.
+- The short answer must be one clear sentence.
+- Details must be short, practical support sentences.
+
 Output rules:
 - Output JSON ONLY. No markdown, no labels, no explanation.
 - JSON must be valid and parseable by Python json.loads().
@@ -273,25 +261,31 @@ JSON ANSWER:
         details = [details] if details.strip() else []
     details = [str(d).strip() for d in details if str(d).strip()]
 
-    # ---------- Build answer: ONLY text ----------
+    # ---------- Build answer: Short Answer then Details ----------
     lines = []
     if short_answer:
+        lines.append("Short Answer:")
         lines.append(short_answer)
     if details:
         lines.append("")
-        lines.append(" ".join(details))
+        lines.append("Details:")
+        for d in details:
+            lines.append(d)
 
     formatted = "\n".join(lines).strip()
     if not formatted:
-        formatted = "This information is not available in internal content."
+        formatted = "Short Answer:\nThis information is not available in internal content."
 
     # Save to history
     st.session_state["history"].append({"q": query, "a": formatted})
     st.session_state["last_processed_query"] = query
 
-    # Clear input so the same question is not shown twice
-    st.session_state["query"] = ""
-    st.rerun()
+# ---------------- Show ONLY the answers (no question bubbles) ----------------
+for item in st.session_state["history"]:
+    st.markdown(
+        f"<div class='bubble ai'>{item['a']}</div>",
+        unsafe_allow_html=True,
+    )
 
 # ---------------- Buttons row (bottom) ----------------
 st.write("")  # small spacer
@@ -314,7 +308,6 @@ if b1:
 if b2:
     st.session_state["history"] = []
     st.session_state["last_processed_query"] = ""
-    st.rerun()
 
 if b3:
     st.rerun()
