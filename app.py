@@ -28,9 +28,18 @@ def get_theme_css(color: str) -> str:
         color: var(--theme-color) !important;
     }}
 
-    .bubble.ai {{
+    .bubble.user {{
         padding: 8px 12px;
         margin-top: 10px;
+        background: #f5f5f5;
+        border-radius: 6px;
+        border-left: 3px solid var(--theme-color);
+        white-space: pre-wrap;
+    }}
+
+    .bubble.ai {{
+        padding: 8px 12px;
+        margin-top: 4px;
         background: #ffffff;
         border-radius: 6px;
         border: 1px solid #eee;
@@ -165,7 +174,8 @@ else:
 
 # ---------------- Session state ----------------
 if "history" not in st.session_state:
-    st.session_state["history"] = []      # list of {"q":..., "a":...}
+    # history is list of {"q": ..., "a": ...}
+    st.session_state["history"] = []
 if "last_processed_query" not in st.session_state:
     st.session_state["last_processed_query"] = ""
 
@@ -226,7 +236,7 @@ Your task:
   {{"short_answer": "This information is not available in internal content.", "details": [], "source": ""}}
 
 Style rules:
-- DO NOT mention "chat history", previous questions, Q1/Q2 etc.
+- DO NOT mention chat history, previous questions, Q1/Q2 etc.
 - Just answer naturally using the information.
 - The short answer must be one clear sentence.
 - Details must be short, practical support sentences.
@@ -276,12 +286,16 @@ JSON ANSWER:
     if not formatted:
         formatted = "Short Answer:\nThis information is not available in internal content."
 
-    # Save to history
+    # Save to history (question + answer)
     st.session_state["history"].append({"q": query, "a": formatted})
     st.session_state["last_processed_query"] = query
 
-# ---------------- Show ONLY the answers (no question bubbles) ----------------
-for item in st.session_state["history"]:
+# ---------------- Show chat: NEWEST first ----------------
+for item in reversed(st.session_state["history"]):
+    st.markdown(
+        f"<div class='bubble user'>{item['q']}</div>",
+        unsafe_allow_html=True,
+    )
     st.markdown(
         f"<div class='bubble ai'>{item['a']}</div>",
         unsafe_allow_html=True,
