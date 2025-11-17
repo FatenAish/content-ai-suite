@@ -211,18 +211,30 @@ if query and vectorstore:
 
     context = "\n\n".join(d.page_content[:1800] for d in docs) if docs else ""
 
-    prompt = PromptTemplate.from_template(""" 
-    Use ONLY the provided internal documents.
-    If the answer is missing, respond: "This information is not available in internal content."
+    prompt = PromptTemplate.from_template("""
+You are the Bayut & Dubizzle internal knowledge assistant.
+Use ONLY the provided internal content.
 
-    CONTEXT:
-    {context}
+Your response MUST follow this structure:
 
-    QUESTION:
-    {question}
+1️⃣ Short Answer (1–2 lines, direct)
+2️⃣ Details (bullet points if needed, still short)
+3️⃣ Source line (if visible in context, mention document name or date — no URLs)
 
-    ANSWER:
-    """)
+Formatting Rules:
+- Do NOT repeat the question.
+- Do NOT say "based on provided documents".
+- Do NOT sound like AI.
+- Be confident and concise.
+- If information is missing, reply ONLY: "This information is not available in internal content."
+
+--------------------
+CONTEXT:
+{context}
+
+ANSWER:
+""")
+
 
     chain = (
         {"context": lambda _: context, "question": RunnablePassthrough()}
