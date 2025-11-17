@@ -49,11 +49,15 @@ def get_theme_css(color: str) -> str:
         white-space: pre-wrap;
     }}
 
-    /* tighten bullet list spacing inside answers */
+    /* tighten spacing inside AI answer bubble */
+    .bubble.ai p {{
+        margin-top: 0.15rem;
+        margin-bottom: 0.15rem;
+    }}
     .bubble.ai ul {{
-        margin-top: 0.2rem;
-        margin-bottom: 0.2rem;
-        padding-left: 1.25rem;
+        margin-top: 0.15rem;
+        margin-bottom: 0.15rem;
+        padding-left: 1.2rem;
     }}
     .bubble.ai ul li {{
         margin-bottom: 0.1rem;
@@ -113,7 +117,7 @@ if query_input_key not in st.session_state:
 DATA_DIR = "data"
 INDEX_DIR = os.path.join(DATA_DIR, "faiss_store")
 
-# ---------------- Find Best File (currently unused, kept for future) ----------------
+# ---------------- Find Best File (not used now, kept for future) ----------------
 def find_best_matching_file(query: str):
     if not os.path.isdir(DATA_DIR):
         return None
@@ -146,7 +150,7 @@ def get_embeddings():
     return HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 
 def get_local_llm():
-    # If you want a dummy LLM, you can gate by env var
+    # Optional dummy LLM for offline testing
     if os.getenv("USE_DUMMY_LLM", "0") == "1":
         class DummyLLM:
             def invoke(self, text):
@@ -230,7 +234,6 @@ col_spacer_l, col1, col2, col3, col_spacer_r = st.columns([2, 1, 1, 1, 2])
 def rebuild_index():
     if os.path.isdir(INDEX_DIR):
         shutil.rmtree(INDEX_DIR, ignore_errors=True)
-    # clear cached resources and rerun
     st.cache_resource.clear()
     st.experimental_rerun()
 
@@ -252,13 +255,12 @@ with col3:
 if query.strip():
     retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
     docs = retriever.invoke(query)
-    # some retrievers return dict
     if isinstance(docs, dict) and "documents" in docs:
         docs = docs["documents"]
 
     context = "\n\n".join(d.page_content[:1800] for d in docs) if docs else ""
 
-    # Build history text (last 5 turns for this tool)
+    # Limited chat history for this tool
     history_items = st.session_state[history_key][-5:]
     history_snippets = [
         f"User: {h['q']}\nAssistant: {h['a']}" for h in history_items
@@ -320,14 +322,13 @@ JSON ANSWER:
         details = [details] if details.strip() else []
     details = [str(d).strip() for d in details if str(d).strip()]
 
-    # ---------- Build answer: Short Answer then Details (with bullets, compact) ----------
+    # ---------- Build answer: Short Answer then Details (with bullets, NO extra blank line) ----------
     lines = []
     if short_answer:
         lines.append("Short Answer:")
         lines.append(short_answer)
 
     if details:
-        lines.append("")
         lines.append("Details:")
         for d in details:
             lines.append(f"- {d}")
