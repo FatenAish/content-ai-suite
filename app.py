@@ -324,9 +324,6 @@ if b1:
         lk = f"last_query_{t}"
         st.session_state[hk] = []
         st.session_state[lk] = ""
-        qk = f"query_input_{t}"
-        if qk in st.session_state:
-            st.session_state[qk] = ""
     st.success("Index cleared. Refreshing…")
     st.rerun()
 
@@ -334,8 +331,6 @@ if b1:
 if b2:
     st.session_state[history_key] = []
     st.session_state[last_query_key] = ""
-    if query_input_key in st.session_state:
-        st.session_state[query_input_key] = ""
     st.rerun()
 
 # Reload button = simple rerun
