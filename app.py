@@ -1,5 +1,5 @@
 # =========================================================
-# app.py — Bayut & Dubizzle AI Content Assistant (Internal RAG Only)
+# Bayut & Dubizzle AI Content Assistant — Internal RAG Only
 # =========================================================
 
 import os
@@ -22,21 +22,18 @@ main .block-container { padding-top:0rem !important;}
 .bubble.user {background:#f2f2f2;margin-left:auto;}
 .bubble.ai {background:#ffffff;margin-right:auto;}
 .evidence {background:#fafafa;border:1px solid #e5e7eb;border-radius:12px;padding:10px;margin:10px 0;font-size:13px;white-space:pre-wrap;}
-.title-red {font-size:34px;font-weight:900;color:#D92C27;text-align:center;}
-.title-main {font-size:28px;font-weight:700;color:#111;text-align:center;margin-top:-10px;}
 </style>
 """, unsafe_allow_html=True)
 
 # ---------------- Header ----------------
-st.markdown("<div class='title-red'>Dubizzle Group AI Lab</div>", unsafe_allow_html=True)
-st.markdown("<div class='title-main'>Bayut & Dubizzle AI Content Assistant</div>", unsafe_allow_html=True)
-st.markdown("<p style='text-align:center; color:#555;'>Fast internal knowledge search powered by internal content.</p>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align:center; font-weight:900; margin-bottom:0;'>Bayut & Dubizzle AI Content Assistant</h1>", unsafe_allow_html=True)
+st.markdown("<p style='text-align:center; color:#555; margin-top:-5px;'>Fast internal knowledge search powered by internal content.</p>", unsafe_allow_html=True)
 
-# ---------------- Tabs ----------------
+# ---------------- Tools (Tabs) ----------------
 tab_general, tab_bayut, tab_dubizzle = st.tabs([
-    "🌍 General Assistant",
-    "🏡 Bayut Assistant",
-    "🚗 Dubizzle Assistant"
+    "🧠 General Tool",
+    "🏡 Bayut Tool",
+    "🚗 Dubizzle Tool"
 ])
 
 # ---------------- File + Vectorstore Paths ----------------
@@ -83,6 +80,8 @@ def get_local_llm():
     if os.getenv("USE_DUMMY_LLM", "0") == "1":
         return DummyLLM()
     from langchain_groq import ChatGroq
+        # If you need dynamic edits, put the prompt variable here
+    
     return ChatGroq(api_key=os.getenv("GROQ_API_KEY"), model="llama-3.1-8b-instant", temperature=0.0, top_p=0.0)
 
 
@@ -137,18 +136,17 @@ def _reset():
     st.session_state.pop("rag_history", None)
     _reload()
 
-# ---------------- Load / Create Vectorstore ----------------
+
+# ---------------- Load or Build DB ----------------
 if faiss_exists():
     vectorstore = load_faiss()
-    st.success("✅ Index loaded")
 else:
     docs = load_default_docs()
     if not docs:
-        st.error("❌ No documents found in /data folder.")
+        st.error("No documents found in the /data folder.")
         st.stop()
     vectorstore = build_vectorstore(docs)
     save_faiss(vectorstore)
-    st.success("✅ Index created")
 
 
 # ---------------- Chat History ----------------
@@ -156,55 +154,61 @@ if "rag_history" not in st.session_state:
     st.session_state["rag_history"] = []
 
 
-def chat_ui(tab_label, key_name):
-    with tab_label:
+# ---------------- Main Chat Component ----------------
+def assistant(tab, key):
+
+    with tab:
+
+        # Show history
         for q, a in st.session_state["rag_history"]:
             st.markdown(f"<div class='bubble user'>{q}</div>", unsafe_allow_html=True)
             st.markdown(f"<div class='bubble ai'>{a}</div>", unsafe_allow_html=True)
 
-        query = st.text_input("Ask your question:", key=key_name)
+        # Input
+        query = st.text_input("Ask your question:", key=f"text_{key}")
 
-        st.write("")
-        left, mid, right = st.columns([1,2,1])
-        with mid:
-            c1, c2, c3 = st.columns([1,1,1])
-            with c1:
-                rebuild = st.button("🔄 Rebuild Index", key=f"rebuild_{key_name}")
-            with c2:
-                st.button("🧹 Clear Chat", key=f"clear_{key_name}", on_click=_reset, use_container_width=True)
-            with c3:
-                st.button("🔁 Reload", key=f"reload_{key_name}", on_click=_reload, use_container_width=True)
+        # Buttons
+        col1, col2, col3 = st.columns([1,1,1])
+        with col1:
+            r = st.button("🔄 Rebuild Index", key=f"rebuild_{key}")
+        with col2:
+            st.button("🧹 Clear Chat", key=f"clear_{key}", on_click=_reset)
+        with col3:
+            st.button("🔁 Reload", key=f"reload_{key}", on_click=_reload)
 
-        if rebuild:
+        if r:
             shutil.rmtree(INDEX_DIR)
             st.cache_resource.clear()
-            st.success("Index removed — reload page.")
             st.stop()
 
+        # Logic
         if query:
-            if any(x in query.lower() for x in ["download","file","send","share","get"]):
-                match = find_best_matching_file(query)
-                if match:
-                    st.success(f"File found: {os.path.basename(match)}")
-                    with open(match,"rb") as f:
-                        st.download_button("⬇️ Download", f, file_name=os.path.basename(match))
+            # File Requests
+            if any(w in query.lower() for w in ["download","file","send","share"]):
+                file = find_best_matching_file(query)
+                if file:
+                    st.success(f"File found: {os.path.basename(file)}")
+                    with open(file,"rb") as f:
+                        st.download_button("Download", f, file_name=os.path.basename(file))
                 else:
-                    st.error("No matching file found.")
+                    st.error("No file found.")
                 st.stop()
 
             with st.spinner("Thinking…"):
+
                 retriever = vectorstore.as_retriever(search_kwargs={"k":3})
                 extract = RunnableLambda(lambda x: x["question"])
-                retrieve_docs = extract | retriever
+                docsearch = extract | retriever
 
-                def join_docs(docs):
-                    return "\n\n".join(d.page_content[:1800] for d in docs) if docs else ""
+                def join(docs):
+                    return "\n\n".join(d.page_content[:1800] for d in docs)
 
-                context = retrieve_docs | RunnableLambda(join_docs)
+                context = docsearch | RunnableLambda(join)
 
                 prompt = PromptTemplate.from_template("""
-You are an internal assistant. Only answer using the CONTEXT.
-If the answer is not found, respond: "This information is not available in the internal content."
+You are an internal content assistant. Use ONLY the provided CONTEXT.
+
+If the answer is not found, reply: "This information is not available in the internal content."
 
 ==========================
 CONTEXT:
@@ -224,19 +228,22 @@ ANSWER (STRICTLY FROM CONTEXT):
                 )
 
                 answer = chain.invoke({"question": query})
+
+                # Save
                 st.session_state["rag_history"].append((query, answer))
 
+                # Show message
                 st.markdown(f"<div class='bubble user'>{query}</div>", unsafe_allow_html=True)
                 st.markdown(f"<div class='bubble ai'>{answer}</div>", unsafe_allow_html=True)
 
+                # Evidence
                 hits = vectorstore.similarity_search_with_score(query, k=3)
                 if hits:
-                    st.markdown("### 📎 Evidence")
+                    st.markdown("### Evidence")
                     for i, (doc, score) in enumerate(hits, 1):
-                        snippet = doc.page_content[:500]
-                        st.markdown(f"<div class='evidence'><b>{i}.</b> (score={score:.3f})\n\n{snippet}…</div>", unsafe_allow_html=True)
+                        st.markdown(f"<div class='evidence'><b>{i}</b> ({score:.3f})\n\n{doc.page_content[:500]}…</div>", unsafe_allow_html=True)
 
 
-chat_ui(tab_general, "general")
-chat_ui(tab_bayut, "bayut")
-chat_ui(tab_dubizzle, "dubizzle")
+assistant(tab_general, "general")
+assistant(tab_bayut, "bayut")
+assistant(tab_dubizzle, "dubizzle")
