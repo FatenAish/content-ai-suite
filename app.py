@@ -16,8 +16,8 @@ st.set_page_config(page_title="Bayut & Dubizzle AI Content Assistant", layout="w
 # ---------------- CSS ----------------
 st.markdown("""
 <style>
-[data-testid="stVerticalBlock"] > div { background: transparent !important; box-shadow:none!important; padding:0!important;margin:0!important;}
-main .block-container { padding-top:0rem !important;}
+[data-testid="stVerticalBlock"] > div { background: transparent !important; box-shadow:none!important; padding:0!important; margin:0!important; }
+main .block-container { padding-top:0rem !important; }
 
 .bubble {
     padding:12px 16px;
@@ -27,8 +27,8 @@ main .block-container { padding-top:0rem !important;}
     line-height:1.6;
     font-size:15px;
 }
-.bubble.user {background:#f2f2f2;margin-left:auto;}
-.bubble.ai {background:#ffffff;margin-right:auto;}
+.bubble.user { background:#f2f2f2; margin-left:auto; }
+.bubble.ai { background:#ffffff; margin-right:auto; }
 
 .evidence {
     background:#fafafa;
@@ -50,31 +50,35 @@ main .block-container { padding-top:0rem !important;}
 .sidebar-bayut { color:#008060; }
 .sidebar-dubizzle { color:#D92C27; }
 
+.button-row {
+    display: flex;
+    justify-content: center;
+    gap: 14px;   /* space between buttons reduced */
+    margin-top: 8px;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
-
-# ---------------- Header ----------------
+# ---------------- HEADER ----------------
 st.markdown("""
-<h1 style='text-align:center; font-weight:900; margin-bottom:0; color:#008060;'>
-Bayut & Dubizzle AI Content Assistant
-</h1>
-<p style='text-align:center; color:#555; margin-top:-6px;'>
+<div style='text-align:center; font-size:38px; font-weight:900; margin-bottom:0;'>
+    <span style='color:#008060;'>Bayut</span>
+    <span style='color:#000000;'>&</span>
+    <span style='color:#D92C27;'>Dubizzle</span>
+    <span style='color:#000000;'> AI Content Assistant</span>
+</div>
+<p style='text-align:center; color:#555; margin-top:-6px; font-size:15px;'>
 Fast internal knowledge search powered by internal content.
 </p>
 """, unsafe_allow_html=True)
 
-
-# ---------------- Sidebar ----------------
+# ---------------- SIDEBAR ----------------
 st.sidebar.markdown("#### Select an option")
 
-tool = st.sidebar.radio(
-    "",
-    ["General", "Bayut", "Dubizzle"],
-    key="tool_selection"
-)
+tool = st.sidebar.radio("", ["General", "Bayut", "Dubizzle"])
 
-# Style options visually
+# Visual indicator
 if tool == "General":
     st.sidebar.markdown("<p class='sidebar-label sidebar-general'>General</p>", unsafe_allow_html=True)
 elif tool == "Bayut":
@@ -82,29 +86,20 @@ elif tool == "Bayut":
 elif tool == "Dubizzle":
     st.sidebar.markdown("<p class='sidebar-label sidebar-dubizzle'>Dubizzle</p>", unsafe_allow_html=True)
 
-
-
-# ---------------- File + Vectorstore Paths ----------------
+# ---------------- Vectorstore Paths ----------------
 DATA_DIR = "data"
 INDEX_DIR = os.path.join(DATA_DIR, "faiss_store")
 
-
 def find_best_matching_file(query, folder=DATA_DIR):
-    if not os.path.isdir(folder):
-        return None
+    if not os.path.isdir(folder): return None
     files = [f for f in os.listdir(folder) if f != "faiss_store"]
-    if not files:
-        return None
+    if not files: return None
     match = difflib.get_close_matches(query.lower(), [f.lower() for f in files], n=1, cutoff=0.3)
-    if not match:
-        return None
     for f in files:
-        if f.lower() == match[0]:
-            return os.path.join(folder, f)
+        if f.lower() == match[0]: return os.path.join(folder, f)
     return None
 
-
-# ---------------- LangChain / RAG Components ----------------
+# ---------------- LangChain ----------------
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader, TextLoader, CSVLoader
@@ -113,11 +108,9 @@ from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough, RunnableLambda
 
-
 @st.cache_resource
 def get_embeddings():
     return HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-
 
 class DummyLLM:
     def invoke(self, text):
@@ -125,23 +118,20 @@ class DummyLLM:
         if isinstance(text, dict): text = str(text)
         return text.split(marker, 1)[-1].strip() if marker in text else text
 
-
 def get_local_llm():
-    if os.getenv("USE_DUMMY_LLM", "0") == "1":
-        return DummyLLM()
+    if os.getenv("USE_DUMMY_LLM", "0") == "1": return DummyLLM()
     from langchain_groq import ChatGroq
     return ChatGroq(api_key=os.getenv("GROQ_API_KEY"), model="llama-3.1-8b-instant", temperature=0.0, top_p=0.0)
 
-
-def load_document(path: str):
+def load_document(path):
     ext = os.path.splitext(path)[1].lower()
     try:
         if ext == ".pdf":  return PyPDFLoader(path).load()
         if ext == ".docx": return Docx2txtLoader(path).load()
         if ext in [".txt", ".md"]: return TextLoader(path, autodetect_encoding=True).load()
         if ext == ".csv":
-            for enc in ["utf-8","utf-8-sig","cp1256","windows-1256",None]:
-                try: return CSVLoader(path, encoding=enc).load()
+            for e in ["utf-8","utf-8-sig","cp1256","windows-1256",None]:
+                try: return CSVLoader(path, encoding=e).load()
                 except: continue
             return []
         if ext == ".xlsx":
@@ -150,7 +140,6 @@ def load_document(path: str):
         return []
     except:
         return []
-
 
 def load_default_docs():
     docs = []
@@ -161,9 +150,7 @@ def load_default_docs():
         if os.path.isfile(full): docs.extend(load_document(full))
     return docs
 
-
 def faiss_exists(): return os.path.isdir(INDEX_DIR)
-
 
 @st.cache_resource
 def build_vectorstore(docs):
@@ -171,89 +158,64 @@ def build_vectorstore(docs):
     chunks = splitter.split_documents(docs)
     return FAISS.from_documents(chunks, get_embeddings())
 
-
-def save_faiss(store): store.save_local(INDEX_DIR)
-def load_faiss(): return FAISS.load_local(INDEX_DIR, get_embeddings(), allow_dangerous_deserialization=True)
-
-
-def _reload(): st.rerun()
 def _reset():
     st.session_state.pop("rag_history", None)
     st.rerun()
 
-
-# ---------------- Load or Build DB ----------------
+# ---------------- Load or Create DB ----------------
 if faiss_exists():
-    vectorstore = load_faiss()
+    vectorstore = FAISS.load_local(INDEX_DIR, get_embeddings(), allow_dangerous_deserialization=True)
 else:
     docs = load_default_docs()
     if not docs:
-        st.error("No documents found in the /data folder.")
+        st.error("No documents found in /data.")
         st.stop()
     vectorstore = build_vectorstore(docs)
-    save_faiss(vectorstore)
+    vectorstore.save_local(INDEX_DIR)
 
-
-# ---------------- Chat History ----------------
+# ---------------- Chat Engine ----------------
 if "rag_history" not in st.session_state:
     st.session_state["rag_history"] = []
 
-
-# ---------------- Main Interface ----------------
 st.write(f"### {tool}")
 
 for q, a in st.session_state["rag_history"]:
     st.markdown(f"<div class='bubble user'>{q}</div>", unsafe_allow_html=True)
     st.markdown(f"<div class='bubble ai'>{a}</div>", unsafe_allow_html=True)
 
-
 query = st.text_input("Ask your question:")
 
+# ---- BUTTON GROUP (centered with reduced spacing) ----
+st.markdown("<div class='button-row'>", unsafe_allow_html=True)
+b1 = st.button("Rebuild Index")
+b2 = st.button("Clear Chat")
+b3 = st.button("Reload")
+st.markdown("</div>", unsafe_allow_html=True)
 
-# ---- Buttons Centered & Close Together ----
-col1, col2, col3 = st.columns([1,1,1])
-with col1:
-    rebuild = st.button("Rebuild Index")
-with col2:
-    st.button("Clear Chat", on_click=_reset)
-with col3:
-    st.button("Reload", on_click=_reload)
-
-
-if rebuild:
+if b1:
     shutil.rmtree(INDEX_DIR)
     st.cache_resource.clear()
     st.rerun()
 
+if b2: _reset()
+if b3: st.rerun()
 
-# ---------------- Assistant Logic ----------------
+# ---- Run Query ----
 if query:
-
-    if any(w in query.lower() for w in ["download","file","send","share"]):
-        file = find_best_matching_file(query)
-        if file:
-            st.success(f"File found: {os.path.basename(file)}")
-            with open(file,"rb") as f:
-                st.download_button("Download", f, file_name=os.path.basename(file))
-        else:
-            st.error("No file found.")
-        st.stop()
-
-
     with st.spinner("Thinking…"):
 
         retriever = vectorstore.as_retriever(search_kwargs={"k":3})
         extract = RunnableLambda(lambda x: x["question"])
         docsearch = extract | retriever
 
-        def join(docs): return "\n\n".join(d.page_content[:1800] for d in docs)
+        def join(docs):
+            return "\n\n".join(d.page_content[:1800] for d in docs)
 
         context = docsearch | RunnableLambda(join)
 
         prompt = PromptTemplate.from_template("""
-You are an internal content assistant. Use ONLY the provided CONTEXT.
-
-If the answer is not found, reply: "This information is not available in the internal content."
+You are an internal assistant. Use ONLY the provided context.
+If the answer is missing, reply: "This information is not available in the internal content."
 
 ==========================
 CONTEXT:
@@ -273,14 +235,7 @@ ANSWER (STRICTLY FROM CONTEXT):
         )
 
         answer = chain.invoke({"question": query})
-
         st.session_state["rag_history"].append((query, answer))
 
         st.markdown(f"<div class='bubble user'>{query}</div>", unsafe_allow_html=True)
         st.markdown(f"<div class='bubble ai'>{answer}</div>", unsafe_allow_html=True)
-
-        hits = vectorstore.similarity_search_with_score(query, k=3)
-        if hits:
-            st.markdown("### Evidence")
-            for i, (doc, score) in enumerate(hits, 1):
-                st.markdown(f"<div class='evidence'><b>{i}</b> ({score:.3f})\n\n{doc.page_content[:500]}…</div>", unsafe_allow_html=True)
