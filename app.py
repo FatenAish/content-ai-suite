@@ -28,9 +28,17 @@ def get_theme_css(color: str) -> str:
         color: var(--theme-color) !important;
     }}
 
-    .bubble.ai {{
+    .bubble.user {{
+        border-left: 3px solid var(--theme-color);
         padding: 8px 12px;
         margin-top: 10px;
+        background: #f5f5f5;
+        border-radius: 6px;
+    }}
+
+    .bubble.ai {{
+        padding: 8px 12px;
+        margin-top: 4px;
         background: #ffffff;
         border-radius: 6px;
         border: 1px solid #eee;
@@ -164,17 +172,36 @@ else:
         vectorstore.save_local(INDEX_DIR)
 
 # ---------------- Session state ----------------
-if "last_a" not in st.session_state:
-    st.session_state["last_a"] = ""
+if "history" not in st.session_state:
+    st.session_state["history"] = []      # list of {"q":..., "a":...}
+if "last_processed_query" not in st.session_state:
+    st.session_state["last_processed_query"] = ""
 
 # ---------------- UI: tool title ----------------
 st.write(f"### {tool}")
 
 # ---------------- Question box ----------------
-query = st.text_input("Ask your question:")
+query = st.text_input("Ask your question:", key="query")
 
-# ---------------- Run RAG only when we have a query ----------------
-if query and vectorstore:
+# ---------------- Show chat history (oldest -> newest) ----------------
+for item in st.session_state["history"]:
+    st.markdown(
+        f"<div class='bubble user'>{item['q']}</div>",
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        f"<div class='bubble ai'>{item['a']}</div>",
+        unsafe_allow_html=True,
+    )
+
+# ---------------- Run RAG only when we have a NEW query ----------------
+is_new_question = (
+    query
+    and query.strip()
+    and query != st.session_state["last_processed_query"]
+)
+
+if is_new_question and vectorstore:
     retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
     docs = retriever.invoke(query)
 
@@ -186,31 +213,39 @@ if query and vectorstore:
 
     llm = get_local_llm()
 
+    # Build short chat history for LLM (last 5 turns)
+    history_snippets = []
+    for h in st.session_state["history"][-5:]:
+        history_snippets.append(f"User: {h['q']}\nAssistant: {h['a']}")
+    history_text = "\n\n".join(history_snippets) if history_snippets else "No previous conversation."
+
     # Model returns JSON: short_answer + optional details[]
     prompt = f"""
 You are the Bayut & Dubizzle internal knowledge assistant.
-Use ONLY the internal content in CONTEXT.
+Use ONLY the internal content in CONTEXT plus the CHAT HISTORY.
+
+CHAT HISTORY:
+{history_text}
+
+CONTEXT:
+{context}
+
+NEW QUESTION:
+{query}
 
 Your task:
-- Read CONTEXT.
-- If the answer exists, produce a JSON object with:
+- If the answer exists in CONTEXT and/or is implied by the previous answers in CHAT HISTORY,
+  produce a JSON object with:
   - "short_answer": one direct sentence answering the question.
   - "details": a list of 0–3 short explanation strings (optional).
   - "source": short reference to document name or date, if visible in context. Empty string if unknown.
 
-- If the answer does NOT exist in CONTEXT, return exactly this JSON:
+- If the answer does NOT exist in CONTEXT or CHAT HISTORY, return exactly this JSON:
   {{"short_answer": "This information is not available in internal content.", "details": [], "source": ""}}
 
 Output rules:
 - Output JSON ONLY. No markdown, no labels, no explanation.
 - JSON must be valid and parseable by Python json.loads().
-
-CONTEXT:
-{context}
-
-QUESTION:
-{query}
-
 JSON ANSWER:
 """
 
@@ -238,7 +273,7 @@ JSON ANSWER:
         details = [details] if details.strip() else []
     details = [str(d).strip() for d in details if str(d).strip()]
 
-    # ---------- Build answer: ONLY text, no labels, no question ----------
+    # ---------- Build answer: ONLY text ----------
     lines = []
     if short_answer:
         lines.append(short_answer)
@@ -250,16 +285,15 @@ JSON ANSWER:
     if not formatted:
         formatted = "This information is not available in internal content."
 
-    st.session_state["last_a"] = formatted
+    # Save to history
+    st.session_state["history"].append({"q": query, "a": formatted})
+    st.session_state["last_processed_query"] = query
 
-# ---------------- Show ONLY the answer under the box ----------------
-if st.session_state["last_a"]:
-    st.markdown(
-        f"<div class='bubble ai'>{st.session_state['last_a']}</div>",
-        unsafe_allow_html=True,
-    )
+    # Clear input so the same question is not shown twice
+    st.session_state["query"] = ""
+    st.rerun()
 
-# ---------------- Buttons row (under answer) ----------------
+# ---------------- Buttons row (bottom) ----------------
 st.write("")  # small spacer
 left, col1, col2, col3, right = st.columns([2, 1, 1, 1, 2])
 
@@ -273,11 +307,14 @@ with col3:
 if b1:
     shutil.rmtree(INDEX_DIR, ignore_errors=True)
     st.cache_resource.clear()
-    st.session_state["last_a"] = ""
+    st.session_state["history"] = []
+    st.session_state["last_processed_query"] = ""
     st.success("Index cleared. Refresh the page.")
 
 if b2:
-    st.session_state["last_a"] = ""
+    st.session_state["history"] = []
+    st.session_state["last_processed_query"] = ""
+    st.rerun()
 
 if b3:
     st.rerun()
