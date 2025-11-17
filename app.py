@@ -88,7 +88,7 @@ st.markdown(get_theme_css(theme_color), unsafe_allow_html=True)
 # ---- Tool-specific state keys ----
 history_key = f"history_{tool}"          # list of {"q":..., "a":...}
 last_query_key = f"last_query_{tool}"    # last processed question for this tool
-query_input_key = f"query_input_{tool}"  # text_input key (do NOT write to it manually)
+query_input_key = f"query_input_{tool}"  # text_input key (READ ONLY)
 
 # ---------------- Paths ----------------
 DATA_DIR = "data"
@@ -201,22 +201,30 @@ with col2:
 with col3:
     b3 = st.button("Reload")
 
+# ----- Handle button actions -----
+
 # Rebuild index: clear FAISS + all histories, then rerun
 if b1:
     shutil.rmtree(INDEX_DIR, ignore_errors=True)
     st.cache_resource.clear()
+
     for t in ["General", "Bayut", "Dubizzle"]:
         hk = f"history_{t}"
         lk = f"last_query_{t}"
         st.session_state[hk] = []
-        st.session_state[lk] = ""
+        # set last_query to current value in that tool's input (if any)
+        qk = f"query_input_{t}"
+        st.session_state[lk] = st.session_state.get(qk, "")
+
     st.success("Index cleared. Refreshing…")
     st.rerun()
 
-# Clear Chat: ONLY current tool, immediate rerun
+# Clear Chat: ONLY current tool, but keep current input as "already answered"
 if b2:
     st.session_state[history_key] = []
-    st.session_state[last_query_key] = ""
+    # set last_query to whatever is currently in the input,
+    # so the same text is not treated as a new question
+    st.session_state[last_query_key] = st.session_state.get(query_input_key, "")
     st.rerun()
 
 # Reload button = simple rerun
