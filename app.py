@@ -335,6 +335,10 @@ if not formatted:
 st.session_state[history_key].append({"q": query, "a": formatted})
 st.session_state[last_query_key] = query
 
+# Save to history FOR THIS TOOL ONLY
+st.session_state[history_key].append({"q": query, "a": formatted})
+st.session_state[last_query_key] = query
+
 
 # ---------------- Show chat: NEWEST first (per tool) ----------------
 for item in reversed(st.session_state[history_key]):
