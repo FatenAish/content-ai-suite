@@ -86,9 +86,9 @@ elif tool == "Dubizzle":
 st.markdown(get_theme_css(theme_color), unsafe_allow_html=True)
 
 # ---- Tool-specific state keys ----
-history_key = f"history_{tool}"
-last_query_key = f"last_query_{tool}"
-query_input_key = f"query_input_{tool}"
+history_key = f"history_{tool}"          # list of {"q":..., "a":...}
+last_query_key = f"last_query_{tool}"    # last processed question for this tool
+query_input_key = f"query_input_{tool}"  # text_input key (do NOT write to it manually)
 
 # ---------------- Paths ----------------
 DATA_DIR = "data"
@@ -190,6 +190,41 @@ st.write(f"### {tool}")
 # ---------------- Question box (per tool key) ----------------
 query = st.text_input("Ask your question:", key=query_input_key)
 
+# ---------------- Buttons row (handle actions FIRST) ----------------
+st.write("")  # spacer
+left, col1, col2, col3, right = st.columns([2, 1, 1, 1, 2])
+
+with col1:
+    b1 = st.button("Rebuild Index")
+with col2:
+    b2 = st.button("Clear Chat")
+with col3:
+    b3 = st.button("Reload")
+
+# Rebuild index: clear FAISS + all histories, then rerun
+if b1:
+    shutil.rmtree(INDEX_DIR, ignore_errors=True)
+    st.cache_resource.clear()
+    for t in ["General", "Bayut", "Dubizzle"]:
+        hk = f"history_{t}"
+        lk = f"last_query_{t}"
+        st.session_state[hk] = []
+        st.session_state[lk] = ""
+    st.success("Index cleared. Refreshing…")
+    st.rerun()
+
+# Clear Chat: ONLY current tool, immediate rerun
+if b2:
+    st.session_state[history_key] = []
+    st.session_state[last_query_key] = ""
+    st.rerun()
+
+# Reload button = simple rerun
+if b3:
+    st.rerun()
+
+# ---------------- Now handle question / answer logic ----------------
+
 # Detect *new* question for this tool
 is_new_question = (
     query
@@ -197,9 +232,7 @@ is_new_question = (
     and query != st.session_state[last_query_key]
 )
 
-# ---------------- Run RAG only when we have a NEW question ----------------
-if is_new_question and vectorstore:
-
+if is_new_question and vectorstore is not None:
     retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
     docs = retriever.invoke(query)
 
@@ -303,36 +336,3 @@ for item in reversed(st.session_state[history_key]):
         f"<div class='bubble ai'>{item['a']}</div>",
         unsafe_allow_html=True,
     )
-
-# ---------------- Buttons row (bottom) ----------------
-st.write("")  # spacer
-left, col1, col2, col3, right = st.columns([2, 1, 1, 1, 2])
-
-with col1:
-    b1 = st.button("Rebuild Index")
-with col2:
-    b2 = st.button("Clear Chat")
-with col3:
-    b3 = st.button("Reload")
-
-# Rebuild index: clear FAISS + all histories, then rerun
-if b1:
-    shutil.rmtree(INDEX_DIR, ignore_errors=True)
-    st.cache_resource.clear()
-    for t in ["General", "Bayut", "Dubizzle"]:
-        hk = f"history_{t}"
-        lk = f"last_query_{t}"
-        st.session_state[hk] = []
-        st.session_state[lk] = ""
-    st.success("Index cleared. Refreshing…")
-    st.rerun()
-
-# Clear Chat: ONLY current tool, immediate rerun
-if b2:
-    st.session_state[history_key] = []
-    st.session_state[last_query_key] = ""
-    st.rerun()
-
-# Reload button = simple rerun
-if b3:
-    st.rerun()
