@@ -84,6 +84,10 @@ elif tool == "Dubizzle":
 
 st.markdown(get_theme_css(theme_color), unsafe_allow_html=True)
 
+# Tool-specific keys for history
+history_key = f"history_{tool}"
+last_query_key = f"last_processed_query_{tool}"
+
 # ---------------- Paths ----------------
 DATA_DIR = "data"
 INDEX_DIR = os.path.join(DATA_DIR, "faiss_store")
@@ -172,12 +176,11 @@ else:
     if vectorstore:
         vectorstore.save_local(INDEX_DIR)
 
-# ---------------- Session state ----------------
-if "history" not in st.session_state:
-    # history is list of {"q": ..., "a": ...}
-    st.session_state["history"] = []
-if "last_processed_query" not in st.session_state:
-    st.session_state["last_processed_query"] = ""
+# ---------------- Session state (per tool) ----------------
+if history_key not in st.session_state:
+    st.session_state[history_key] = []          # list of {"q":..., "a":...}
+if last_query_key not in st.session_state:
+    st.session_state[last_query_key] = ""
 
 # ---------------- UI: tool title ----------------
 st.write(f"### {tool}")
@@ -185,11 +188,11 @@ st.write(f"### {tool}")
 # ---------------- Question box ----------------
 query = st.text_input("Ask your question:")
 
-# Detect a new question (so we don't answer the same text twice)
+# Detect a new question (so we don't answer the same text twice per tool)
 is_new_question = (
     query
     and query.strip()
-    and query != st.session_state["last_processed_query"]
+    and query != st.session_state[last_query_key]
 )
 
 # ---------------- Run RAG only when we have a NEW query ----------------
@@ -205,9 +208,9 @@ if is_new_question and vectorstore:
 
     llm = get_local_llm()
 
-    # Build short chat history for LLM (last 5 turns)
+    # Build short chat history for THIS TOOL only (last 5 turns)
     history_snippets = []
-    for h in st.session_state["history"][-5:]:
+    for h in st.session_state[history_key][-5:]:
         history_snippets.append(f"User: {h['q']}\nAssistant: {h['a']}")
     history_text = "\n\n".join(history_snippets) if history_snippets else "No previous conversation."
 
@@ -286,12 +289,12 @@ JSON ANSWER:
     if not formatted:
         formatted = "Short Answer:\nThis information is not available in internal content."
 
-    # Save to history (question + answer)
-    st.session_state["history"].append({"q": query, "a": formatted})
-    st.session_state["last_processed_query"] = query
+    # Save to history for THIS TOOL
+    st.session_state[history_key].append({"q": query, "a": formatted})
+    st.session_state[last_query_key] = query
 
-# ---------------- Show chat: NEWEST first ----------------
-for item in reversed(st.session_state["history"]):
+# ---------------- Show chat: NEWEST first (per tool) ----------------
+for item in reversed(st.session_state[history_key]):
     st.markdown(
         f"<div class='bubble user'>{item['q']}</div>",
         unsafe_allow_html=True,
@@ -315,13 +318,18 @@ with col3:
 if b1:
     shutil.rmtree(INDEX_DIR, ignore_errors=True)
     st.cache_resource.clear()
-    st.session_state["history"] = []
-    st.session_state["last_processed_query"] = ""
+    # clear histories for all tools, to be safe
+    for t in ["General", "Bayut", "Dubizzle"]:
+        hk = f"history_{t}"
+        lk = f"last_processed_query_{t}"
+        st.session_state[hk] = []
+        st.session_state[lk] = ""
     st.success("Index cleared. Refresh the page.")
 
 if b2:
-    st.session_state["history"] = []
-    st.session_state["last_processed_query"] = ""
+    # clear ONLY current tool chat
+    st.session_state[history_key] = []
+    st.session_state[last_query_key] = ""
 
 if b3:
     st.rerun()
