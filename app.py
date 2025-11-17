@@ -197,37 +197,35 @@ if b3:
     st.rerun()
 
 
-# ---------------- Run Query ----------------
-if query and vectorstore:
+if query:
 
     retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
-    docs = retriever.get_relevant_documents(query)
+    docsearch = RunnableLambda(lambda x: retriever.get_relevant_documents(str(x["question"])))
 
-    context = "\n".join([d.page_content[:1000] for d in docs]) if docs else ""
+    def join_docs(docs):
+        return "\n\n".join(d.page_content[:1800] for d in docs)
 
-    if not context.strip():
-        answer = "This information is not available in internal content."
-    else:
-        prompt = PromptTemplate.from_template("""
-Answer using ONLY the context below.
+    context = docsearch | RunnableLambda(join_docs)
 
-CONTEXT:
-{context}
+    prompt = PromptTemplate.from_template(""" 
+    You are an internal assistant. Use ONLY the provided context.
+    If the answer is missing, reply: "This information is not available in internal content."
 
-QUESTION:
-{question}
+    ==========================
+    CONTEXT:
+    {context}
+    ==========================
+    QUESTION:
+    {question}
+    ==========================
+    ANSWER (STRICTLY FROM CONTEXT):
+    """)
 
-ANSWER:
-""")
+    chain = (
+        {"context": context, "question": RunnablePassthrough()}
+        | prompt
+        | get_local_llm()
+        | StrOutputParser()
+    )
 
-        chain = (
-            {"context": lambda _: context, "question": RunnablePassthrough()}
-            | prompt
-            | get_local_llm()
-            | StrOutputParser()
-        )
-
-        answer = chain.invoke({"question": query})
-
-    st.session_state["rag_history"].append((query, answer))
-    st.rerun()
+    answer = chain.invoke({"question": query})
