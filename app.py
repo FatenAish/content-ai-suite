@@ -188,7 +188,7 @@ if query and vectorstore:
     retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
     docs = retriever.invoke(query)
 
-    # newer LC sometimes returns dict with "documents"
+    # newer LangChain sometimes returns dict with "documents"
     if isinstance(docs, dict) and "documents" in docs:
         docs = docs["documents"]
 
@@ -196,7 +196,7 @@ if query and vectorstore:
 
     llm = get_local_llm()
 
-    # Ask model to return JSON with BOTH short_answer and at least one detail
+    # Model returns JSON: short_answer + details[]
     prompt = f"""
 You are the Bayut & Dubizzle internal knowledge assistant.
 Use ONLY the internal content in CONTEXT.
@@ -205,15 +205,14 @@ Your task:
 - Read CONTEXT.
 - If the answer exists, produce a JSON object with:
   - "short_answer": one direct sentence answering the question.
-  - "details": a list of 1–3 short explanation strings. This list MUST contain at least one item when the answer exists.
+  - "details": a list of 1–3 short explanation strings (optional, can be empty).
   - "source": short reference to document name or date, if visible in context. Empty string if unknown.
 
 - If the answer does NOT exist in CONTEXT, return exactly this JSON:
   {{"short_answer": "This information is not available in internal content.", "details": [], "source": ""}}
 
-Very important:
-- When "short_answer" is not "This information is not available in internal content.", "details" must NOT be empty.
-- Output JSON ONLY. No markdown, no extra text, no explanation.
+Output rules:
+- Output JSON ONLY. No markdown, no labels, no explanation.
 - JSON must be valid and parseable by Python json.loads().
 
 CONTEXT:
@@ -248,39 +247,32 @@ JSON ANSWER:
     if isinstance(details, str):
         details = [details] if details.strip() else []
     details = [str(d).strip() for d in details if str(d).strip()]
-    source = str(data.get("source", "")).strip()
 
-    # ---------- Build answer EXACTLY in your style ----------
+    # ---------- Build answer: ONLY text, no labels ----------
     lines = []
 
-    # Always show Short Answer line
     if short_answer:
-        lines.append("Short Answer:")
         lines.append(short_answer)
-        lines.append("")  # blank line
 
-    # Details block: show only if we have at least one detail
     if details:
-        lines.append("Details:")
-        details_text = " ".join(details)
-        lines.append(details_text)
-        lines.append("")
-
-    # (Source is not shown anymore in the bubble – you can re-add if you want)
+        lines.append("")  # blank line between short answer and details
+        lines.append(" ".join(details))
 
     formatted = "\n".join(lines).strip()
     if not formatted:
-        formatted = "Short Answer:\nThis information is not available in internal content."
+        formatted = "This information is not available in internal content."
 
     st.session_state["last_q"] = query
     st.session_state["last_a"] = formatted
 
 # ---------------- Show answer directly under the question box ----------------
 if st.session_state["last_q"] and st.session_state["last_a"]:
+    # grey bubble with the question
     st.markdown(
         f"<div class='bubble user'>{st.session_state['last_q']}</div>",
         unsafe_allow_html=True,
     )
+    # white bubble with ONLY the answer text
     st.markdown(
         f"<div class='bubble ai'>{st.session_state['last_a']}</div>",
         unsafe_allow_html=True,
