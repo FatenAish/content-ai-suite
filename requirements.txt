@@ -1,11 +1,6 @@
 streamlit
 pandas
-python-docx
-docx2txt
+numpy
 langchain
-langchain-community
-langchain-core
-langchain-groq
-sentence-transformers
 faiss-cpu
-chardet
+requests
