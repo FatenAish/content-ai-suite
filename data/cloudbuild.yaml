@@ -1,0 +1,27 @@
+steps:
+  # Step 1 — Build Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/content-ai-suite', '.']
+
+  # Step 2 — Push to Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/content-ai-suite']
+
+  # Step 3 — Deploy to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      [
+        'run', 'deploy', 'content-ai-suite',
+        '--image', 'gcr.io/$PROJECT_ID/content-ai-suite',
+        '--region', 'europe-west1',
+        '--platform', 'managed',
+        '--allow-unauthenticated'
+      ]
+
+images:
+  - 'gcr.io/$PROJECT_ID/content-ai-suite'
+
+options:
+  logging: GCS_ONLY
+  logBucket: 'cloud-build-logs-478007-n4'
