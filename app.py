@@ -1,278 +1,137 @@
-# =========================================================
-# Bayut & Dubizzle AI Content Assistant — Internal RAG Only
-# =========================================================
-
 import os
-import shutil
-import difflib
-import json
-import pandas as pd
 import streamlit as st
-from uuid import uuid4
-from langchain_core.documents import Document
+from langchain.document_loaders import TextLoader
+from langchain.embeddings import HuggingFaceEmbeddings
+from langchain.vectorstores import FAISS
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.schema import Document
 
-# ---------------- Page config ----------------
-st.set_page_config(
-    page_title="Bayut & Dubizzle AI Content Assistant",
-    layout="wide",
-)
+# ------------------------------
+# UI SETUP
+# ------------------------------
+st.set_page_config(page_title="Bayut & Dubizzle AI Assistant", layout="wide")
 
-# ---------------- CSS ----------------
-def get_theme_css(color: str) -> str:
-    return f"""
-    <style>
-    :root {{
-        --theme-color: {color};
-    }}
-    h2, h3, h4, label {{
-        color: var(--theme-color) !important;
-    }}
-    .bubble {{
-        padding: 10px 14px;
-        border-radius: 6px;
-        margin: 4px 0;
-        max-width: 100%;
-        line-height: 1.6;
-        font-size: 15px;
-    }}
-    .bubble.user {{
-        background: #f5f5f5;
-        border-left: 3px solid var(--theme-color);
-    }}
-    .bubble.ai {{
-        background: #ffffff;
-        border: 1px solid #eee;
-        white-space: pre-wrap;
-    }}
-    </style>
-    """
-
-# ---------------- Header ----------------
-st.markdown(
-    """
-<div style='text-align:center; font-size:38px; font-weight:900; margin-bottom:0;'>
-  <span style='color:#008060;'>Bayut</span>
-  <span style='color:#000000;'> & </span>
-  <span style='color:#D92C27;'>Dubizzle</span>
-  <span style='color:#000000;'> AI Content Assistant</span>
-</div>
-<p style='text-align:center; color:#555; margin-top:-6px; font-size:15px;'>
-Fast internal knowledge search powered by internal content.
-</p>
-""",
-    unsafe_allow_html=True,
-)
-
-# ---------------- Sidebar ----------------
-st.sidebar.markdown("#### Select an option")
-tool = st.sidebar.radio("", ["General", "Bayut", "Dubizzle"])
-
-theme_color = "#000000"
-if tool == "Bayut":
-    theme_color = "#008060"
-elif tool == "Dubizzle":
-    theme_color = "#D92C27"
-
-st.markdown(get_theme_css(theme_color), unsafe_allow_html=True)
-
-# session keys
-tool_key = tool.lower()
-history_key = f"history_{tool_key}"
-query_key = f"query_{tool_key}"
-
-if history_key not in st.session_state:
-    st.session_state[history_key] = []
-
-if query_key not in st.session_state:
-    st.session_state[query_key] = ""
-
-# ---------------- Data paths ----------------
-DATA_DIR = "/app/data" if os.getenv("CLOUD_RUN") else "data"
-INDEX_DIR = os.path.join(DATA_DIR, "faiss_store")
-
-st.caption(f"📁 DATA DIR: **{DATA_DIR}**")
-
-# show files
-if os.path.isdir(DATA_DIR):
-    st.json(os.listdir(DATA_DIR))
+st.markdown("""
+<h1 style='text-align:center;color:#008060;'>Bayut <span style='color:#d30000'>& Dubizzle</span> AI Content Assistant</h1>
+<p style='text-align:center;'>Fast internal knowledge search powered by internal content.</p>
+""", unsafe_allow_html=True)
 
 
-# ---------------- Loaders ----------------
-from langchain_community.vectorstores import FAISS
-from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain_community.document_loaders import (
-    PyPDFLoader,
-    Docx2txtLoader,
-    TextLoader,
-    CSVLoader,
-)
-from langchain_text_splitters import RecursiveCharacterTextSplitter
+# ------------------------------
+# CONFIG
+# ------------------------------
+DATA_DIR = "data"
+EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 
-
+# ------------------------------
+# LOAD EMBEDDINGS
+# ------------------------------
 @st.cache_resource
-def get_embeddings():
-    return HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+def load_embeddings():
+    return HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
 
+emb = load_embeddings()
 
-def get_local_llm():
-    """Groq LLM model"""
-    if os.getenv("USE_DUMMY_LLM", "0") == "1":
-        class DummyLLM:
-            def invoke(self, text):
-                return type("Resp", (), {"content": "Dummy mode active. No real LLM."})
-        return DummyLLM()
-
-    from langchain_groq import ChatGroq
-
-    return ChatGroq(
-        api_key=os.getenv("GROQ_API_KEY"),
-        model="llama-3.1-8b-instant",
-        temperature=0,
-    )
-
-
-def load_document(path: str):
-    ext = os.path.splitext(path)[1].lower()
-
-    try:
-        if ext == ".pdf":
-            return PyPDFLoader(path).load()
-        if ext == ".docx":
-            return Docx2txtLoader(path).load()
-        if ext in [".txt", ".md"]:
-            return TextLoader(path, autodetect_encoding=True).load()
-        if ext == ".csv":
-            return CSVLoader(path, encoding="utf-8").load()
-        if ext == ".xlsx":
-            df = pd.read_excel(path)
-            return [Document(page_content=df.to_string(index=False), metadata={"source": path})]
-        return []
-    except:
-        return []
-
-
-def build_vectorstore():
+# ------------------------------
+# LOAD DOCUMENTS FROM /data
+# ------------------------------
+def load_docs():
     docs = []
-    if not os.path.isdir(DATA_DIR):
-        return None
+    for filename in os.listdir(DATA_DIR):
+        if filename.endswith(".txt"):
+            path = os.path.join(DATA_DIR, filename)
+            text = open(path, "r", encoding="utf-8", errors="ignore").read()
+            docs.append(Document(page_content=text, metadata={"source": filename}))
+    return docs
 
-    for f in os.listdir(DATA_DIR):
-        if f == "faiss_store":
-            continue
-        full = os.path.join(DATA_DIR, f)
-        if os.path.isfile(full):
-            docs.extend(load_document(full))
-
+# ------------------------------
+# BUILD VECTORSTORE
+# ------------------------------
+@st.cache_resource
+def build_vectorstore():
+    docs = load_docs()
     if not docs:
         return None
 
-    splitter = RecursiveCharacterTextSplitter(chunk_size=250, chunk_overlap=40)
+    splitter = RecursiveCharacterTextSplitter(chunk_size=700, chunk_overlap=150)
     chunks = splitter.split_documents(docs)
 
-    return FAISS.from_documents(chunks, get_embeddings())
+    return FAISS.from_documents(chunks, emb)
 
+vectorstore = build_vectorstore()
 
-# ---------------- Index Loader ----------------
-@st.cache_resource
-def get_vectorstore():
-    if os.path.exists(INDEX_DIR):
-        return FAISS.load_local(
-            INDEX_DIR,
-            get_embeddings(),
-            allow_dangerous_deserialization=True,
-        )
+# ------------------------------
+# GET RETRIEVER (IMPORTANT FIX)
+# ------------------------------
+retriever = None
+if vectorstore:
+    retriever = vectorstore.as_retriever()
 
-    store = build_vectorstore()
-    if store:
-        store.save_local(INDEX_DIR)
-    return store
+# ------------------------------
+# SIMPLE LOCAL LLM (NO GROQ)
+# ------------------------------
+# To avoid import errors we use a dummy offline LLM-like function
+def local_llm(prompt, documents):
+    text = "\n\n".join([d.page_content[:500] for d in documents])
+    return f"🔍 **Answer from retrieved documents**\n\n{text[:1500]}"
 
+# ------------------------------
+# SHOW FILES
+# ------------------------------
+st.subheader("📁 DATA DIR:", divider="gray")
+st.write(f"Location: `{DATA_DIR}`")
 
-vectorstore = get_vectorstore()
+files_list = os.listdir(DATA_DIR)
+st.write(files_list)
 
-if vectorstore is None:
-    st.error("❌ No documents found in /data. Upload files and click **Rebuild Index**.")
-    st.stop()
+st.write("---")
 
-
-# ---------------- Query UI ----------------
-st.write(f"### {tool}")
-
-query = st.text_input("Ask your question:", key=query_key)
+# ------------------------------
+# USER INPUT
+# ------------------------------
+st.subheader("General")
+query = st.text_input("Ask your question:")
 
 col1, col2, col3 = st.columns(3)
-
-
-def rebuild_index():
-    shutil.rmtree(INDEX_DIR, ignore_errors=True)
-    st.cache_resource.clear()
-    st.rerun()   # FIXED
-
-
-def clear_chat():
-    st.session_state[history_key] = []
-    st.session_state[query_key] = ""
-
-
 with col1:
-    st.button("Rebuild Index", on_click=rebuild_index)
+    rebuild = st.button("Rebuild Index")
 with col2:
-    st.button("Clear Chat", on_click=clear_chat)
+    st.button("Clear Chat")
 with col3:
-    st.button("Reload", on_click=st.rerun)   # FIXED
+    st.button("Reload")
 
+# ------------------------------
+# REBUILD INDEX
+# ------------------------------
+if rebuild:
+    st.cache_resource.clear()
+    st.success("Index rebuilt. Refreshing...")
+    st.stop()
 
-# ---------------- Run Query ----------------
-if query.strip():
-
-    retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
-    docs = retriever.get_relevant_documents(query)
-
-    context = "\n\n".join(d.page_content[:1500] for d in docs)
-
-    history_text = "\n".join(
-        f"User: {h['q']}\nAssistant: {h['a']}"
-        for h in st.session_state[history_key][-5:]
-    ) or "No previous history."
-
-    llm = get_local_llm()
-
-    prompt = f"""
-You are the Bayut & Dubizzle Internal Knowledge Assistant.
-Use ONLY the text inside CONTEXT and CHAT HISTORY.
-
-CHAT HISTORY:
-{history_text}
-
-CONTEXT:
-{context}
-
-NEW QUESTION:
-{query}
-
-Return JSON:
-- short_answer: one sentence
-- details: list of bullet points
-- source: file name
-"""
-
-    response = llm.invoke(prompt)
-    raw = response.content if hasattr(response, "content") else str(response)
+# ------------------------------
+# PROCESS QUERY
+# ------------------------------
+if query:
+    if not retriever:
+        st.error("No vectorstore found. Upload files to /data and rebuild index.")
+        st.stop()
 
     try:
-        data = json.loads(raw)
-    except:
-        data = {"short_answer": raw, "details": [], "source": ""}
+        docs = retriever.get_relevant_documents(query)
+    except Exception as e:
+        st.error(f"Retriever error: {str(e)}")
+        st.stop()
 
-    final_answer = f"Short Answer:\n{data['short_answer']}\n"
+    if not docs:
+        st.warning("No relevant information found in documents.")
+        st.stop()
 
-    if data.get("details"):
-        final_answer += "\nDetails:\n" + "\n".join(f"- {d}" for d in data["details"])
+    answer = local_llm(query, docs)
 
-    st.session_state[history_key].append({"q": query, "a": final_answer})
+    st.subheader("Answer")
+    st.write(answer)
 
-
-# ---------------- Chat History Display ----------------
-for item in reversed(st.session_state[history_key]):
-    st.markdown(f"<div class='bubble user'>{item['q']}</div>", unsafe_allow_html=True)
-    st.markdown(f"<div class='bubble ai'>{item['a']}</div>", unsafe_allow_html=True)
+    st.subheader("Retrieved Documents")
+    for d in docs:
+        st.write(f"📄 **{d.metadata['source']}**")
+        st.write(d.page_content[:500] + "...")
