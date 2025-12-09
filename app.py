@@ -24,12 +24,10 @@ def get_theme_css(color: str) -> str:
     :root {{
         --theme-color: {color};
     }}
-
     h2, h3, h4, label {{
         color: var(--theme-color) !important;
     }}
 
-    /* Question + answer bubbles */
     .bubble {{
         padding: 10px 14px;
         border-radius: 6px;
@@ -48,8 +46,6 @@ def get_theme_css(color: str) -> str:
         border: 1px solid #eeeeee;
         white-space: pre-wrap;
     }}
-
-    /* tighten spacing inside AI answer bubble */
     .bubble.ai p {{
         margin-top: 0.15rem;
         margin-bottom: 0.15rem;
@@ -103,21 +99,22 @@ elif tool == "Dubizzle":
 st.markdown(get_theme_css(theme_color), unsafe_allow_html=True)
 
 # Per-tool keys
-tool_key = tool.lower()  # "general", "bayut", "dubizzle"
+tool_key = tool.lower()
 history_key = f"history_{tool_key}"
 query_input_key = f"query_{tool_key}"
 
-# Init per-tool session state
 if history_key not in st.session_state:
     st.session_state[history_key] = []
 if query_input_key not in st.session_state:
     st.session_state[query_input_key] = ""
 
-# ---------------- Vectorstore Paths ----------------
-DATA_DIR = "data"
+# ---------------- Vectorstore Paths (FIXED FOR CLOUD RUN) ----------------
+DATA_DIR = "/app/data"           # <—— FIXED HERE
 INDEX_DIR = os.path.join(DATA_DIR, "faiss_store")
 
-# ---------------- Find Best File (not used now, kept for future) ----------------
+st.write("📁 Loading documents from:", DATA_DIR)
+
+# ---------------- Find Best File ----------------
 def find_best_matching_file(query: str):
     if not os.path.isdir(DATA_DIR):
         return None
@@ -150,7 +147,6 @@ def get_embeddings():
     return HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 
 def get_local_llm():
-    # Optional dummy LLM for offline testing
     if os.getenv("USE_DUMMY_LLM", "0") == "1":
         class DummyLLM:
             def invoke(self, text):
@@ -173,7 +169,6 @@ def load_document(path: str):
         if ext in [".txt", ".md"]:
             return TextLoader(path, autodetect_encoding=True).load()
         if ext == ".csv":
-            # try multiple encodings
             for enc in ["utf-8", "utf-8-sig", "cp1256", "windows-1256", None]:
                 try:
                     return CSVLoader(path, encoding=enc).load()
@@ -219,16 +214,15 @@ def get_vectorstore():
 
 vectorstore = get_vectorstore()
 if vectorstore is None:
-    st.error("No documents found in /data folder. Please add files and rebuild the index.")
+    st.error("No documents found in /app/data folder. Please add files and rebuild the index.")
     st.stop()
 
-# ---------------- Title per tool ----------------
+# ---------------- Title ----------------
 st.write(f"### {tool}")
 
-# ---------------- Question input ----------------
+# ---------------- Query Input ----------------
 query = st.text_input("Ask your question:", key=query_input_key)
 
-# ---------------- Buttons (centered) ----------------
 col_spacer_l, col1, col2, col3, col_spacer_r = st.columns([2, 1, 1, 1, 2])
 
 def rebuild_index():
@@ -244,14 +238,11 @@ def clear_chat():
 def reload_app():
     st.experimental_rerun()
 
-with col1:
-    st.button("Rebuild Index", on_click=rebuild_index)
-with col2:
-    st.button("Clear Chat", on_click=clear_chat)
-with col3:
-    st.button("Reload", on_click=reload_app)
+with col1: st.button("Rebuild Index", on_click=rebuild_index)
+with col2: st.button("Clear Chat", on_click=clear_chat)
+with col3: st.button("Reload", on_click=reload_app)
 
-# ---------------- Run Query & Build Answer ----------------
+# ---------------- Run Query ----------------
 if query.strip():
     retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
     docs = retriever.invoke(query)
@@ -260,7 +251,6 @@ if query.strip():
 
     context = "\n\n".join(d.page_content[:1800] for d in docs) if docs else ""
 
-    # Limited chat history for this tool
     history_items = st.session_state[history_key][-5:]
     history_snippets = [
         f"User: {h['q']}\nAssistant: {h['a']}" for h in history_items
@@ -282,26 +272,15 @@ NEW QUESTION:
 {query}
 
 Your task:
-- If the answer exists in CONTEXT and/or is implied by previous answers in CHAT HISTORY,
-  produce a JSON object with:
-  - "short_answer": one direct sentence answering the question.
-  - "details": a list of 0–3 short explanation strings (optional).
-  - "source": short reference to document name or date, if visible in context. Empty string if unknown.
+- If the answer exists in CONTEXT and/or CHAT HISTORY:
+  produce JSON with "short_answer", "details", "source".
+- Otherwise output:
+  {{"short_answer":"This information is not available in internal content.","details":[],"source":""}}
 
-- If the answer does NOT exist in CONTEXT or CHAT HISTORY, return exactly this JSON:
-  {{"short_answer": "This information is not available in internal content.", "details": [], "source": ""}}
-
-Style rules:
-- DO NOT mention chat history, previous questions, Q1/Q2 etc.
-- Just answer naturally using the information.
-- The short answer must be one clear sentence.
-- Details must be short, practical support sentences.
-
-Output rules:
-- Output JSON ONLY. No markdown, no labels, no explanation.
-- JSON must be valid and parseable by Python json.loads().
-
-JSON ANSWER:
+Rules:
+- JSON only.
+- No markdown.
+- One clear sentence short answer.
 """
 
     resp = llm.invoke(prompt)
@@ -310,11 +289,7 @@ JSON ANSWER:
     try:
         data = json.loads(raw_text)
     except Exception:
-        data = {
-            "short_answer": raw_text.strip(),
-            "details": [],
-            "source": "",
-        }
+        data = {"short_answer": raw_text.strip(), "details": [], "source": ""}
 
     short_answer = str(data.get("short_answer", "")).strip()
     details = data.get("details", [])
@@ -322,12 +297,10 @@ JSON ANSWER:
         details = [details] if details.strip() else []
     details = [str(d).strip() for d in details if str(d).strip()]
 
-    # ---------- Build answer: Short Answer then Details (with bullets, NO extra blank line) ----------
     lines = []
     if short_answer:
         lines.append("Short Answer:")
         lines.append(short_answer)
-
     if details:
         lines.append("Details:")
         for d in details:
@@ -337,17 +310,9 @@ JSON ANSWER:
     if not formatted:
         formatted = "Short Answer:\nThis information is not available in internal content."
 
-    # Save to history FOR THIS TOOL ONLY
     st.session_state[history_key].append({"q": query, "a": formatted})
 
-# ---------------- Show chat: newest first (per tool) ----------------
+# ---------------- Show Chat ----------------
 for item in reversed(st.session_state[history_key]):
-    st.markdown(
-        f"<div class='bubble user'>{item['q']}</div>",
-        unsafe_allow_html=True,
-    )
-    # Trigger deployment
-    st.markdown(
-        f"<div class='bubble ai'>{item['a']}</div>",
-        unsafe_allow_html=True,
-    )
+    st.markdown(f"<div class='bubble user'>{item['q']}</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='bubble ai'>{item['a']}</div>", unsafe_allow_html=True)
