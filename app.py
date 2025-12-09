@@ -346,6 +346,7 @@ for item in reversed(st.session_state[history_key]):
         f"<div class='bubble user'>{item['q']}</div>",
         unsafe_allow_html=True,
     )
+    # Trigger deployment
     st.markdown(
         f"<div class='bubble ai'>{item['a']}</div>",
         unsafe_allow_html=True,
