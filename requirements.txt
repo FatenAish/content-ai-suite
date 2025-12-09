@@ -5,3 +5,4 @@ langchain
 langchain-community
 faiss-cpu
 requests
+sentence-transformers   ← ADD THIS
