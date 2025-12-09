@@ -90,6 +90,7 @@ Fast internal knowledge search powered by internal content.
 st.sidebar.markdown("#### Select an option")
 tool = st.sidebar.radio("", ["General", "Bayut", "Dubizzle"])
 
+# Theme colors
 theme_color = "#000000"
 if tool == "Bayut":
     theme_color = "#008060"
@@ -98,7 +99,7 @@ elif tool == "Dubizzle":
 
 st.markdown(get_theme_css(theme_color), unsafe_allow_html=True)
 
-# Per-tool keys
+# Manage session keys
 tool_key = tool.lower()
 history_key = f"history_{tool_key}"
 query_input_key = f"query_{tool_key}"
@@ -108,12 +109,18 @@ if history_key not in st.session_state:
 if query_input_key not in st.session_state:
     st.session_state[query_input_key] = ""
 
-# ---------------- FIXED FILE PATHS (WORK ON STREAMLIT CLOUD + LOCAL + DOCKER) ----------------
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))       # Folder where app.py lives
-DATA_DIR = os.path.join(BASE_DIR, "data")                   # Correct data path
-INDEX_DIR = os.path.join(DATA_DIR, "faiss_store")           # Where we store FAISS index
+# ---------------- FIXED PATH SYSTEM (WORKS IN CLOUD RUN) ----------------
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))   # folder containing app.py
+DATA_DIR = os.path.join(BASE_DIR, "data")               # /app/data in Cloud Run
+INDEX_DIR = os.path.join(DATA_DIR, "faiss_store")
 
 st.write("📁 DATA DIR:", DATA_DIR)
+
+# Debug: show files inside /data
+if os.path.exists(DATA_DIR):
+    st.write("📄 Files in data:", os.listdir(DATA_DIR))
+else:
+    st.write("❌ Data folder missing!")
 
 # ---------------- File Matching ----------------
 def find_best_matching_file(query: str):
@@ -132,7 +139,7 @@ def find_best_matching_file(query: str):
             return os.path.join(DATA_DIR, f)
     return None
 
-# ---------------- LangChain RAG ----------------
+# ---------------- RAG Dependencies ----------------
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.document_loaders import (
@@ -147,12 +154,14 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 def get_embeddings():
     return HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 
+# Local LLM (Groq)
 def get_local_llm():
     if os.getenv("USE_DUMMY_LLM", "0") == "1":
         class DummyLLM:
             def invoke(self, text):
                 return type("Resp", (), {"content": "This information is not available in internal content."})
         return DummyLLM()
+
     from langchain_groq import ChatGroq
     return ChatGroq(
         api_key=os.getenv("GROQ_API_KEY"),
@@ -160,6 +169,7 @@ def get_local_llm():
         temperature=0,
     )
 
+# ---------------- Document Loading ----------------
 def load_document(path: str):
     ext = os.path.splitext(path)[1].lower()
     try:
@@ -173,16 +183,17 @@ def load_document(path: str):
             for enc in ["utf-8", "utf-8-sig", "cp1256", "windows-1256", None]:
                 try:
                     return CSVLoader(path, encoding=enc).load()
-                except Exception:
+                except:
                     continue
             return []
         if ext == ".xlsx":
             df = pd.read_excel(path)
             return [Document(page_content=df.to_string(index=False), metadata={"source": path})]
         return []
-    except Exception:
+    except:
         return []
 
+# ---------------- Build Vectorstore ----------------
 def build_vectorstore():
     docs = []
     if not os.path.isdir(DATA_DIR):
@@ -195,36 +206,42 @@ def build_vectorstore():
             docs.extend(load_document(full))
     if not docs:
         return None
+
     splitter = RecursiveCharacterTextSplitter(chunk_size=250, chunk_overlap=50)
     chunks = splitter.split_documents(docs)
+
     return FAISS.from_documents(chunks, get_embeddings())
 
-# ---------------- Load or Build FAISS Index ----------------
+# ---------------- Load / Rebuild FAISS Index ----------------
 @st.cache_resource
 def get_vectorstore():
     if os.path.exists(INDEX_DIR):
-        return FAISS.load_local(
-            INDEX_DIR,
-            get_embeddings(),
-            allow_dangerous_deserialization=True,
-        )
+        try:
+            return FAISS.load_local(
+                INDEX_DIR,
+                get_embeddings(),
+                allow_dangerous_deserialization=True,
+            )
+        except:
+            pass
+
     store = build_vectorstore()
-    if store is not None:
+    if store:
         store.save_local(INDEX_DIR)
     return store
 
 vectorstore = get_vectorstore()
 if vectorstore is None:
-    st.error("❌ No documents found in the data folder. Please add files in /data and rebuild the index.")
+    st.error("❌ No documents found in /data. Please add files and rebuild the index.")
     st.stop()
 
-# ---------------- Title ----------------
+# ---------------- UI ----------------
 st.write(f"### {tool}")
 
-# ---------------- Query ----------------
 query = st.text_input("Ask your question:", key=query_input_key)
 
-col_spacer_l, col1, col2, col3, col_spacer_r = st.columns([2, 1, 1, 1, 2])
+# Control buttons
+col1, col2, col3 = st.columns(3)
 
 def rebuild_index():
     if os.path.isdir(INDEX_DIR):
@@ -239,11 +256,11 @@ def clear_chat():
 def reload_app():
     st.experimental_rerun()
 
-with col1: st.button("Rebuild Index", on_click=rebuild_index)
-with col2: st.button("Clear Chat", on_click=clear_chat)
-with col3: st.button("Reload", on_click=reload_app)
+col1.button("Rebuild Index", on_click=rebuild_index)
+col2.button("Clear Chat", on_click=clear_chat)
+col3.button("Reload", on_click=reload_app)
 
-# ---------------- Run Query ----------------
+# ---------------- Query Execution ----------------
 if query.strip():
     retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
     docs = retriever.invoke(query)
@@ -253,10 +270,9 @@ if query.strip():
     context = "\n\n".join(d.page_content[:1800] for d in docs) if docs else ""
 
     history_items = st.session_state[history_key][-5:]
-    history_snippets = [
+    history_text = "\n\n".join(
         f"User: {h['q']}\nAssistant: {h['a']}" for h in history_items
-    ]
-    history_text = "\n\n".join(history_snippets) if history_snippets else "No previous conversation."
+    ) or "No previous conversation."
 
     llm = get_local_llm()
     prompt = f"""
@@ -281,7 +297,6 @@ Your task:
 Rules:
 - JSON only.
 - No markdown.
-- One clear sentence short answer.
 """
 
     resp = llm.invoke(prompt)
@@ -289,31 +304,21 @@ Rules:
 
     try:
         data = json.loads(raw_text)
-    except Exception:
+    except:
         data = {"short_answer": raw_text.strip(), "details": [], "source": ""}
 
-    short_answer = str(data.get("short_answer", "")).strip()
+    short_answer = data.get("short_answer", "").strip()
     details = data.get("details", [])
     if isinstance(details, str):
-        details = [details] if details.strip() else []
-    details = [str(d).strip() for d in details if str(d).strip()]
+        details = [details]
 
-    lines = []
-    if short_answer:
-        lines.append("Short Answer:")
-        lines.append(short_answer)
+    formatted = "Short Answer:\n" + short_answer
     if details:
-        lines.append("Details:")
-        for d in details:
-            lines.append(f"- {d}")
-
-    formatted = "\n".join(lines).strip()
-    if not formatted:
-        formatted = "Short Answer:\nThis information is not available in internal content."
+        formatted += "\nDetails:\n" + "\n".join(f"- {d}" for d in details)
 
     st.session_state[history_key].append({"q": query, "a": formatted})
 
-# ---------------- Show Chat ----------------
+# ---------------- Display Chat ----------------
 for item in reversed(st.session_state[history_key]):
     st.markdown(f"<div class='bubble user'>{item['q']}</div>", unsafe_allow_html=True)
     st.markdown(f"<div class='bubble ai'>{item['a']}</div>", unsafe_allow_html=True)
