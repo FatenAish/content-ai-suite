@@ -1,198 +1,123 @@
-# =========================================================
-# Bayut & Dubizzle AI Content Assistant — Simple Internal RAG
-# =========================================================
-
-import os
-import json
 import streamlit as st
-
-from langchain_core.documents import Document
-from langchain_community.embeddings import HuggingFaceEmbeddings
+import os
+import time
 from langchain_community.vectorstores import FAISS
-from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_community.embeddings import SentenceTransformerEmbedding
+from langchain_community.document_loaders import TextLoader
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 
-# ---------------------------------------------------------
-# Page config & basic styling
-# ---------------------------------------------------------
+# -----------------------------
+# STREAMLIT PAGE SETUP
+# -----------------------------
 st.set_page_config(
     page_title="Bayut & Dubizzle AI Content Assistant",
-    layout="wide",
+    layout="wide"
 )
 
-st.markdown(
-    """
-<div style='text-align:center; font-size:38px; font-weight:900; margin-bottom:0;'>
-  <span style='color:#008060;'>Bayut</span>
-  <span style='color:#000000;'> & </span>
-  <span style='color:#D92C27;'>Dubizzle</span>
-  <span style='color:#000000;'> AI Content Assistant</span>
-</div>
-<p style='text-align:center; color:#555; margin-top:-6px; font-size:15px;'>
-Fast internal knowledge search powered by internal content.
-</p>
-""",
-    unsafe_allow_html=True,
-)
+# -----------------------------
+# SIDEBAR MENU
+# -----------------------------
+with st.sidebar:
+    st.header("Select an option")
+    mode = st.radio("", ["General", "Bayut", "Dubizzle"])
 
-# ---------------------------------------------------------
-# Paths & constants
-# ---------------------------------------------------------
-DATA_DIR = "data"  # works locally and on Streamlit Cloud
-EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+# -----------------------------
+# HEADER AND SUBTITLE
+# -----------------------------
+st.markdown("""
+    <h1 style='font-size:42px;'>
+        <span style='color:#0E8A6D;'>Bayut</span> & 
+        <span style='color:#D71920;'>Dubizzle</span> 
+        AI Content Assistant
+    </h1>
+    <p style='font-size:18px; color:#444; margin-top:-10px;'>
+        Fast internal knowledge search powered by internal content.
+    </p>
+""", unsafe_allow_html=True)
 
+# -----------------------------
+# DATA DIRECTORY (DISPLAY ONLY)
+# -----------------------------
+DATA_DIR = "./data"
+st.markdown(f"### 📁 DATA DIR: `/app/data`")
 
-# ---------------------------------------------------------
-# Embeddings (cached)
-# ---------------------------------------------------------
-@st.cache_resource
-def get_embeddings():
-    return HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
+# INTERNAL USE ONLY – DO NOT DISPLAY FILE LIST
+files = os.listdir(DATA_DIR)
 
+# -----------------------------
+# VECTOR STORE PATHS
+# -----------------------------
+FAISS_DIR = os.path.join(DATA_DIR, "faiss_store")
 
-# ---------------------------------------------------------
-# Load documents from /data (.txt only – matches your repo)
-# ---------------------------------------------------------
-def load_documents_from_data() -> list[Document]:
-    docs: list[Document] = []
+# -----------------------------
+# EMBEDDINGS MODEL
+# -----------------------------
+embeddings = SentenceTransformerEmbedding(model_name="all-MiniLM-L6-v2")
 
-    if not os.path.isdir(DATA_DIR):
-        return docs
-
-    for fname in os.listdir(DATA_DIR):
-        if not fname.lower().endswith(".txt"):
-            continue
-
-        fpath = os.path.join(DATA_DIR, fname)
+# -----------------------------
+# LOAD / BUILD INDEX
+# -----------------------------
+def load_vectorstore():
+    """Load FAISS if exists, otherwise return None."""
+    if os.path.exists(FAISS_DIR):
         try:
-            with open(fpath, "r", encoding="utf-8", errors="ignore") as f:
-                text = f.read().strip()
-            if text:
-                docs.append(Document(page_content=text, metadata={"source": fname}))
-        except Exception:
-            continue
+            return FAISS.load_local(FAISS_DIR, embeddings, allow_dangerous_deserialization=True)
+        except:
+            return None
+    return None
 
-    return docs
-
-
-# ---------------------------------------------------------
-# Build FAISS vectorstore in-memory (cached)
-# ---------------------------------------------------------
-@st.cache_resource
 def build_vectorstore():
-    docs = load_documents_from_data()
-    if not docs:
-        return None
+    """Read all .txt files, embed them, and save FAISS."""
+    documents = []
+    splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=80)
 
-    splitter = RecursiveCharacterTextSplitter(
-        chunk_size=800,
-        chunk_overlap=150,
-    )
-    chunks = splitter.split_documents(docs)
+    for file in os.listdir(DATA_DIR):
+        if file.endswith(".txt"):
+            loader = TextLoader(os.path.join(DATA_DIR, file), encoding="utf-8")
+            pages = loader.load()
+            documents.extend(splitter.split_documents(pages))
 
-    embeddings = get_embeddings()
-    return FAISS.from_documents(chunks, embeddings)
+    db = FAISS.from_documents(documents, embeddings)
+    db.save_local(FAISS_DIR)
+    return db
 
+# Load or create vectorstore
+vectorstore = load_vectorstore()
+if vectorstore is None:
+    vectorstore = build_vectorstore()
 
-vectorstore = build_vectorstore()
+retriever = vectorstore.as_retriever(search_kwargs={"k": 4})
 
-
-# ---------------------------------------------------------
-# Helper to rebuild index (clear cache)
-# ---------------------------------------------------------
-def rebuild_index():
-    st.cache_resource.clear()
-    st.rerun()
-
-
-# ---------------------------------------------------------
-# Show which files are loaded
-# ---------------------------------------------------------
-st.caption(f"📁 DATA DIR: `{DATA_DIR}`")
-
-if os.path.isdir(DATA_DIR):
-    st.write("Files found in `data/`:")
-    st.json(os.listdir(DATA_DIR))
-else:
-    st.warning("`data/` folder not found. Please create it and add .txt files.")
-
-st.write("---")
-
-# ---------------------------------------------------------
-# Main UI
-# ---------------------------------------------------------
-st.subheader("General")
-
+# -----------------------------
+# USER INPUT FIELD
+# -----------------------------
+st.subheader(mode)
 query = st.text_input("Ask your question:")
 
-col1, col2, col3 = st.columns(3)
-with col1:
-    if st.button("Rebuild Index"):
-        rebuild_index()
-with col2:
-    if st.button("Clear Chat"):
-        # no history now, just rerun to clear output
-        st.rerun()
-with col3:
-    if st.button("Reload"):
-        st.rerun()
+# -----------------------------
+# PROCESS QUERY
+# -----------------------------
+if query:
+    with st.spinner("Searching internal knowledge..."):
+        time.sleep(0.2)
 
+        # Retrieve relevant text chunks
+        docs = retriever.get_relevant_documents(query)
 
-# ---------------------------------------------------------
-# Simple “LLM”: just formats the single best chunk
-# ---------------------------------------------------------
-def simple_answer_from_docs(question: str, docs: list[Document]) -> str:
-    """Create a short answer using the most relevant chunk only."""
-    if not docs:
-        return "I couldn't find anything related to this question in the internal documents."
+        if not docs:
+            st.write("I couldn't find anything related to this question in the internal documents.")
+        else:
+            st.markdown("### Here’s what I found:")
+            for i, d in enumerate(docs, start=1):
+                st.markdown(f"**Source:** {d.metadata.get('source', 'Unknown File')}")
+                st.write(d.page_content)
+                st.markdown("---")
 
-    best = docs[0]
-    snippet = best.page_content[:1200]  # limit length a bit
-
-    answer = (
-        f"Here’s what I found in the internal content related to:\n"
-        f"**{question}**\n\n"
-        f"From **{best.metadata.get('source', 'unknown')}**:\n\n"
-        f"{snippet}"
-    )
-    return answer
-
-
-# ---------------------------------------------------------
-# Run query – return ONE answer only, no history
-# ---------------------------------------------------------
-if query.strip():
-    if vectorstore is None:
-        st.error(
-            "No documents found to build the index. "
-            "Please add .txt files to the `data/` folder and click **Rebuild Index**."
-        )
-    else:
-        try:
-            retriever = vectorstore.as_retriever(search_kwargs={"k": 4})
-
-            # New LangChain retrievers are Runnables – use invoke()
-            try:
-                docs = retriever.invoke(query)
-            except AttributeError:
-                # Fallback for older versions
-                docs = retriever.get_relevant_documents(query)
-
-            answer = simple_answer_from_docs(query, docs)
-
-            # show one “user bubble”
-            st.markdown(
-                f"<div style='background:#f5f5f5;padding:10px 14px;border-radius:6px;"
-                f"margin:4px 0;border-left:3px solid #008060;'>"
-                f"{query}</div>",
-                unsafe_allow_html=True,
-            )
-            # and one “assistant bubble”
-            st.markdown(
-                f"<div style='background:#ffffff;padding:10px 14px;border-radius:6px;"
-                f"margin:4px 0;border:1px solid #eee;'>"
-                f"{answer}</div>",
-                unsafe_allow_html=True,
-            )
-
-        except Exception as e:
-            st.error(f"Retriever error: {e}")
+# -----------------------------
+# REBUILD INDEX BUTTON
+# -----------------------------
+if st.button("Rebuild Index"):
+    with st.spinner("Rebuilding vector index..."):
+        vectorstore = build_vectorstore()
+        retriever = vectorstore.as_retriever(search_kwargs={"k": 4})
+        st.success("Index rebuilt successfully!")
