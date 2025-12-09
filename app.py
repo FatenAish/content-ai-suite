@@ -50,8 +50,7 @@ def get_embeddings():
 
 
 # ---------------------------------------------------------
-# Load documents from /data
-# (only .txt files for now – matches your repo)
+# Load documents from /data (.txt only – matches your repo)
 # ---------------------------------------------------------
 def load_documents_from_data() -> list[Document]:
     docs: list[Document] = []
@@ -60,7 +59,6 @@ def load_documents_from_data() -> list[Document]:
         return docs
 
     for fname in os.listdir(DATA_DIR):
-        # only text files with content
         if not fname.lower().endswith(".txt"):
             continue
 
@@ -71,7 +69,6 @@ def load_documents_from_data() -> list[Document]:
             if text:
                 docs.append(Document(page_content=text, metadata={"source": fname}))
         except Exception:
-            # skip any problematic file but don't crash the app
             continue
 
     return docs
@@ -133,44 +130,35 @@ with col1:
         rebuild_index()
 with col2:
     if st.button("Clear Chat"):
-        if "history" in st.session_state:
-            st.session_state["history"] = []
+        # no history now, just rerun to clear output
         st.rerun()
 with col3:
     if st.button("Reload"):
         st.rerun()
 
-# Initialise simple chat history
-if "history" not in st.session_state:
-    st.session_state["history"] = []
-
 
 # ---------------------------------------------------------
-# Simple local "LLM" – just summarises retrieved docs
-# (no external API needed)
+# Simple “LLM”: just formats the single best chunk
 # ---------------------------------------------------------
 def simple_answer_from_docs(question: str, docs: list[Document]) -> str:
-    """Create a human-readable answer using the retrieved chunks."""
+    """Create a short answer using the most relevant chunk only."""
     if not docs:
         return "I couldn't find anything related to this question in the internal documents."
 
-    # Use the most relevant 2–3 chunks
-    top_chunks = docs[:3]
-    combined_text = "\n\n---\n\n".join(
-        f"From **{d.metadata.get('source', 'unknown')}**:\n\n{d.page_content[:1000]}"
-        for d in top_chunks
-    )
+    best = docs[0]
+    snippet = best.page_content[:1200]  # limit length a bit
 
     answer = (
-        f"Here’s what I found in the internal content related to:\n\n"
+        f"Here’s what I found in the internal content related to:\n"
         f"**{question}**\n\n"
-        f"{combined_text}"
+        f"From **{best.metadata.get('source', 'unknown')}**:\n\n"
+        f"{snippet}"
     )
     return answer
 
 
 # ---------------------------------------------------------
-# Run query
+# Run query – return ONE answer only, no history
 # ---------------------------------------------------------
 if query.strip():
     if vectorstore is None:
@@ -178,7 +166,6 @@ if query.strip():
             "No documents found to build the index. "
             "Please add .txt files to the `data/` folder and click **Rebuild Index**."
         )
-        docs = []
     else:
         try:
             retriever = vectorstore.as_retriever(search_kwargs={"k": 4})
@@ -190,26 +177,22 @@ if query.strip():
                 # Fallback for older versions
                 docs = retriever.get_relevant_documents(query)
 
+            answer = simple_answer_from_docs(query, docs)
+
+            # show one “user bubble”
+            st.markdown(
+                f"<div style='background:#f5f5f5;padding:10px 14px;border-radius:6px;"
+                f"margin:4px 0;border-left:3px solid #008060;'>"
+                f"{query}</div>",
+                unsafe_allow_html=True,
+            )
+            # and one “assistant bubble”
+            st.markdown(
+                f"<div style='background:#ffffff;padding:10px 14px;border-radius:6px;"
+                f"margin:4px 0;border:1px solid #eee;'>"
+                f"{answer}</div>",
+                unsafe_allow_html=True,
+            )
+
         except Exception as e:
             st.error(f"Retriever error: {e}")
-            docs = []
-
-    answer = simple_answer_from_docs(query, docs)
-    st.session_state["history"].append({"q": query, "a": answer})
-
-# ---------------------------------------------------------
-# Show chat history
-# ---------------------------------------------------------
-for item in reversed(st.session_state["history"]):
-    st.markdown(
-        f"<div style='background:#f5f5f5;padding:10px 14px;border-radius:6px;"
-        f"margin:4px 0;border-left:3px solid #008060;'>"
-        f"{item['q']}</div>",
-        unsafe_allow_html=True,
-    )
-    st.markdown(
-        f"<div style='background:#ffffff;padding:10px 14px;border-radius:6px;"
-        f"margin:4px 0;border:1px solid #eee;'>"
-        f"{item['a']}</div>",
-        unsafe_allow_html=True,
-    )
