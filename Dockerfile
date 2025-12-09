@@ -9,17 +9,18 @@ RUN apt-get update && apt-get install -y \
     libstdc++6 \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy and install Python dependencies
+# Copy Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy full application
+# Copy ENTIRE project to the container (including data folder)
 COPY . .
 
-# IMPORTANT: copy data folder into the container
-COPY data /app/data
+# DEBUG: Show /app content at build time
+RUN echo "---- DEBUG: Listing /app ----" && ls -R /app
 
 # Expose port for Streamlit
 EXPOSE 8080
 
+# Run Streamlit
 CMD ["streamlit", "run", "app.py", "--server.port=8080", "--server.address=0.0.0.0"]
