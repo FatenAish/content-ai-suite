@@ -2,10 +2,11 @@ import streamlit as st
 import os
 import time
 
+# Correct new imports after LangChain split
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.document_loaders import TextLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 
 # -------------------------------------------------------
@@ -41,16 +42,16 @@ st.markdown("""
 
 
 # -------------------------------------------------------
-# DATA DIRECTORY (YOU CAN CHANGE THIS)
+# DATA DIRECTORY
 # -------------------------------------------------------
 DATA_DIR = "./data"
 FAISS_DIR = os.path.join(DATA_DIR, "faiss_store")
 
-st.markdown(f"### 📁 DATA DIR: `/app/data`")
+st.markdown("### 📁 DATA DIR: `/app/data`")
 
 
 # -------------------------------------------------------
-# EMBEDDING MODEL
+# EMBEDDINGS
 # -------------------------------------------------------
 embeddings = HuggingFaceEmbeddings(
     model_name="sentence-transformers/all-MiniLM-L6-v2"
@@ -58,14 +59,16 @@ embeddings = HuggingFaceEmbeddings(
 
 
 # -------------------------------------------------------
-# LOAD / BUILD FAISS INDEX
+# LOAD / BUILD INDEX
 # -------------------------------------------------------
 def load_vectorstore():
-    """Load existing FAISS index if available."""
+    """Load existing FAISS index."""
     if os.path.exists(FAISS_DIR):
         try:
             return FAISS.load_local(
-                FAISS_DIR, embeddings, allow_dangerous_deserialization=True
+                FAISS_DIR,
+                embeddings,
+                allow_dangerous_deserialization=True
             )
         except:
             return None
@@ -73,9 +76,12 @@ def load_vectorstore():
 
 
 def build_vectorstore():
-    """Embed all TXT files and create a FAISS index."""
+    """Embed all TXT files and save FAISS index."""
     documents = []
-    splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=80)
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=800,
+        chunk_overlap=80
+    )
 
     for file in os.listdir(DATA_DIR):
         if file.endswith(".txt"):
@@ -96,14 +102,14 @@ retriever = vectorstore.as_retriever(search_kwargs={"k": 4})
 
 
 # -------------------------------------------------------
-# MAIN INPUT
+# INPUT
 # -------------------------------------------------------
 st.subheader(mode)
 query = st.text_input("Ask your question:")
 
 
 # -------------------------------------------------------
-# PROCESS QUERY
+# SEARCH
 # -------------------------------------------------------
 if query:
     with st.spinner("Searching internal knowledge..."):
@@ -116,14 +122,14 @@ if query:
         else:
             st.markdown("### Here’s what I found:")
             for d in docs:
-                source = d.metadata.get("source", "Unknown file")
-                st.markdown(f"**From {source}:**")
+                src = d.metadata.get("source", "Unknown file")
+                st.markdown(f"**From {src}:**")
                 st.write(d.page_content)
                 st.markdown("---")
 
 
 # -------------------------------------------------------
-# REBUILD INDEX BUTTON
+# REBUILD INDEX
 # -------------------------------------------------------
 if st.button("Rebuild Index"):
     with st.spinner("Rebuilding index..."):
