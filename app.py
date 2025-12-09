@@ -2,7 +2,7 @@ import streamlit as st
 import os
 import time
 from langchain_community.vectorstores import FAISS
-from langchain_community.embeddings import SentenceTransformerEmbedding
+from langchain.embeddings import HuggingFaceEmbeddings
 from langchain_community.document_loaders import TextLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 
@@ -52,7 +52,7 @@ FAISS_DIR = os.path.join(DATA_DIR, "faiss_store")
 # -----------------------------
 # EMBEDDINGS MODEL
 # -----------------------------
-embeddings = SentenceTransformerEmbedding(model_name="all-MiniLM-L6-v2")
+embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 
 # -----------------------------
 # LOAD / BUILD INDEX
