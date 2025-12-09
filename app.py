@@ -98,6 +98,7 @@ def build_vectorstore():
 
 vectorstore = build_vectorstore()
 
+
 # ---------------------------------------------------------
 # Helper to rebuild index (clear cache)
 # ---------------------------------------------------------
@@ -177,17 +178,24 @@ if query.strip():
             "No documents found to build the index. "
             "Please add .txt files to the `data/` folder and click **Rebuild Index**."
         )
+        docs = []
     else:
         try:
             retriever = vectorstore.as_retriever(search_kwargs={"k": 4})
-            docs = retriever.get_relevant_documents(query)
+
+            # New LangChain retrievers are Runnables – use invoke()
+            try:
+                docs = retriever.invoke(query)
+            except AttributeError:
+                # Fallback for older versions
+                docs = retriever.get_relevant_documents(query)
+
         except Exception as e:
             st.error(f"Retriever error: {e}")
             docs = []
 
-        answer = simple_answer_from_docs(query, docs)
-
-        st.session_state["history"].append({"q": query, "a": answer})
+    answer = simple_answer_from_docs(query, docs)
+    st.session_state["history"].append({"q": query, "a": answer})
 
 # ---------------------------------------------------------
 # Show chat history
