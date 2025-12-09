@@ -1,137 +1,207 @@
+# =========================================================
+# Bayut & Dubizzle AI Content Assistant — Simple Internal RAG
+# =========================================================
+
 import os
+import json
 import streamlit as st
-from langchain.document_loaders import TextLoader
-from langchain.embeddings import HuggingFaceEmbeddings
-from langchain.vectorstores import FAISS
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.schema import Document
 
-# ------------------------------
-# UI SETUP
-# ------------------------------
-st.set_page_config(page_title="Bayut & Dubizzle AI Assistant", layout="wide")
+from langchain_core.documents import Document
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_community.vectorstores import FAISS
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-st.markdown("""
-<h1 style='text-align:center;color:#008060;'>Bayut <span style='color:#d30000'>& Dubizzle</span> AI Content Assistant</h1>
-<p style='text-align:center;'>Fast internal knowledge search powered by internal content.</p>
-""", unsafe_allow_html=True)
+# ---------------------------------------------------------
+# Page config & basic styling
+# ---------------------------------------------------------
+st.set_page_config(
+    page_title="Bayut & Dubizzle AI Content Assistant",
+    layout="wide",
+)
 
+st.markdown(
+    """
+<div style='text-align:center; font-size:38px; font-weight:900; margin-bottom:0;'>
+  <span style='color:#008060;'>Bayut</span>
+  <span style='color:#000000;'> & </span>
+  <span style='color:#D92C27;'>Dubizzle</span>
+  <span style='color:#000000;'> AI Content Assistant</span>
+</div>
+<p style='text-align:center; color:#555; margin-top:-6px; font-size:15px;'>
+Fast internal knowledge search powered by internal content.
+</p>
+""",
+    unsafe_allow_html=True,
+)
 
-# ------------------------------
-# CONFIG
-# ------------------------------
-DATA_DIR = "data"
+# ---------------------------------------------------------
+# Paths & constants
+# ---------------------------------------------------------
+DATA_DIR = "data"  # works locally and on Streamlit Cloud
 EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 
-# ------------------------------
-# LOAD EMBEDDINGS
-# ------------------------------
+
+# ---------------------------------------------------------
+# Embeddings (cached)
+# ---------------------------------------------------------
 @st.cache_resource
-def load_embeddings():
+def get_embeddings():
     return HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
 
-emb = load_embeddings()
 
-# ------------------------------
-# LOAD DOCUMENTS FROM /data
-# ------------------------------
-def load_docs():
-    docs = []
-    for filename in os.listdir(DATA_DIR):
-        if filename.endswith(".txt"):
-            path = os.path.join(DATA_DIR, filename)
-            text = open(path, "r", encoding="utf-8", errors="ignore").read()
-            docs.append(Document(page_content=text, metadata={"source": filename}))
+# ---------------------------------------------------------
+# Load documents from /data
+# (only .txt files for now – matches your repo)
+# ---------------------------------------------------------
+def load_documents_from_data() -> list[Document]:
+    docs: list[Document] = []
+
+    if not os.path.isdir(DATA_DIR):
+        return docs
+
+    for fname in os.listdir(DATA_DIR):
+        # only text files with content
+        if not fname.lower().endswith(".txt"):
+            continue
+
+        fpath = os.path.join(DATA_DIR, fname)
+        try:
+            with open(fpath, "r", encoding="utf-8", errors="ignore") as f:
+                text = f.read().strip()
+            if text:
+                docs.append(Document(page_content=text, metadata={"source": fname}))
+        except Exception:
+            # skip any problematic file but don't crash the app
+            continue
+
     return docs
 
-# ------------------------------
-# BUILD VECTORSTORE
-# ------------------------------
+
+# ---------------------------------------------------------
+# Build FAISS vectorstore in-memory (cached)
+# ---------------------------------------------------------
 @st.cache_resource
 def build_vectorstore():
-    docs = load_docs()
+    docs = load_documents_from_data()
     if not docs:
         return None
 
-    splitter = RecursiveCharacterTextSplitter(chunk_size=700, chunk_overlap=150)
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=800,
+        chunk_overlap=150,
+    )
     chunks = splitter.split_documents(docs)
 
-    return FAISS.from_documents(chunks, emb)
+    embeddings = get_embeddings()
+    return FAISS.from_documents(chunks, embeddings)
+
 
 vectorstore = build_vectorstore()
 
-# ------------------------------
-# GET RETRIEVER (IMPORTANT FIX)
-# ------------------------------
-retriever = None
-if vectorstore:
-    retriever = vectorstore.as_retriever()
+# ---------------------------------------------------------
+# Helper to rebuild index (clear cache)
+# ---------------------------------------------------------
+def rebuild_index():
+    st.cache_resource.clear()
+    st.rerun()
 
-# ------------------------------
-# SIMPLE LOCAL LLM (NO GROQ)
-# ------------------------------
-# To avoid import errors we use a dummy offline LLM-like function
-def local_llm(prompt, documents):
-    text = "\n\n".join([d.page_content[:500] for d in documents])
-    return f"🔍 **Answer from retrieved documents**\n\n{text[:1500]}"
 
-# ------------------------------
-# SHOW FILES
-# ------------------------------
-st.subheader("📁 DATA DIR:", divider="gray")
-st.write(f"Location: `{DATA_DIR}`")
+# ---------------------------------------------------------
+# Show which files are loaded
+# ---------------------------------------------------------
+st.caption(f"📁 DATA DIR: `{DATA_DIR}`")
 
-files_list = os.listdir(DATA_DIR)
-st.write(files_list)
+if os.path.isdir(DATA_DIR):
+    st.write("Files found in `data/`:")
+    st.json(os.listdir(DATA_DIR))
+else:
+    st.warning("`data/` folder not found. Please create it and add .txt files.")
 
 st.write("---")
 
-# ------------------------------
-# USER INPUT
-# ------------------------------
+# ---------------------------------------------------------
+# Main UI
+# ---------------------------------------------------------
 st.subheader("General")
+
 query = st.text_input("Ask your question:")
 
 col1, col2, col3 = st.columns(3)
 with col1:
-    rebuild = st.button("Rebuild Index")
+    if st.button("Rebuild Index"):
+        rebuild_index()
 with col2:
-    st.button("Clear Chat")
+    if st.button("Clear Chat"):
+        if "history" in st.session_state:
+            st.session_state["history"] = []
+        st.rerun()
 with col3:
-    st.button("Reload")
+    if st.button("Reload"):
+        st.rerun()
 
-# ------------------------------
-# REBUILD INDEX
-# ------------------------------
-if rebuild:
-    st.cache_resource.clear()
-    st.success("Index rebuilt. Refreshing...")
-    st.stop()
+# Initialise simple chat history
+if "history" not in st.session_state:
+    st.session_state["history"] = []
 
-# ------------------------------
-# PROCESS QUERY
-# ------------------------------
-if query:
-    if not retriever:
-        st.error("No vectorstore found. Upload files to /data and rebuild index.")
-        st.stop()
 
-    try:
-        docs = retriever.get_relevant_documents(query)
-    except Exception as e:
-        st.error(f"Retriever error: {str(e)}")
-        st.stop()
-
+# ---------------------------------------------------------
+# Simple local "LLM" – just summarises retrieved docs
+# (no external API needed)
+# ---------------------------------------------------------
+def simple_answer_from_docs(question: str, docs: list[Document]) -> str:
+    """Create a human-readable answer using the retrieved chunks."""
     if not docs:
-        st.warning("No relevant information found in documents.")
-        st.stop()
+        return "I couldn't find anything related to this question in the internal documents."
 
-    answer = local_llm(query, docs)
+    # Use the most relevant 2–3 chunks
+    top_chunks = docs[:3]
+    combined_text = "\n\n---\n\n".join(
+        f"From **{d.metadata.get('source', 'unknown')}**:\n\n{d.page_content[:1000]}"
+        for d in top_chunks
+    )
 
-    st.subheader("Answer")
-    st.write(answer)
+    answer = (
+        f"Here’s what I found in the internal content related to:\n\n"
+        f"**{question}**\n\n"
+        f"{combined_text}"
+    )
+    return answer
 
-    st.subheader("Retrieved Documents")
-    for d in docs:
-        st.write(f"📄 **{d.metadata['source']}**")
-        st.write(d.page_content[:500] + "...")
+
+# ---------------------------------------------------------
+# Run query
+# ---------------------------------------------------------
+if query.strip():
+    if vectorstore is None:
+        st.error(
+            "No documents found to build the index. "
+            "Please add .txt files to the `data/` folder and click **Rebuild Index**."
+        )
+    else:
+        try:
+            retriever = vectorstore.as_retriever(search_kwargs={"k": 4})
+            docs = retriever.get_relevant_documents(query)
+        except Exception as e:
+            st.error(f"Retriever error: {e}")
+            docs = []
+
+        answer = simple_answer_from_docs(query, docs)
+
+        st.session_state["history"].append({"q": query, "a": answer})
+
+# ---------------------------------------------------------
+# Show chat history
+# ---------------------------------------------------------
+for item in reversed(st.session_state["history"]):
+    st.markdown(
+        f"<div style='background:#f5f5f5;padding:10px 14px;border-radius:6px;"
+        f"margin:4px 0;border-left:3px solid #008060;'>"
+        f"{item['q']}</div>",
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        f"<div style='background:#ffffff;padding:10px 14px;border-radius:6px;"
+        f"margin:4px 0;border:1px solid #eee;'>"
+        f"{item['a']}</div>",
+        unsafe_allow_html=True,
+    )
