@@ -9,7 +9,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # 🔥 EXPLICITLY copy data folder (fixes your issue)
-COPY data /app/data
+COPY ./data /app/data
 
 EXPOSE 8080
 
