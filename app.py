@@ -17,7 +17,7 @@ st.set_page_config(
     layout="wide",
 )
 
-# ---------------- CSS + Dynamic Theme ----------------
+# ---------------- CSS ----------------
 def get_theme_css(color: str) -> str:
     return f"""
     <style>
@@ -27,7 +27,6 @@ def get_theme_css(color: str) -> str:
     h2, h3, h4, label {{
         color: var(--theme-color) !important;
     }}
-
     .bubble {{
         padding: 10px 14px;
         border-radius: 6px;
@@ -42,30 +41,8 @@ def get_theme_css(color: str) -> str:
     }}
     .bubble.ai {{
         background: #ffffff;
-        border-radius: 6px;
-        border: 1px solid #eeeeee;
+        border: 1px solid #eee;
         white-space: pre-wrap;
-    }}
-    .bubble.ai p {{
-        margin-top: 0.15rem;
-        margin-bottom: 0.15rem;
-    }}
-    .bubble.ai ul {{
-        margin-top: 0.15rem;
-        margin-bottom: 0.15rem;
-        padding-left: 1.2rem;
-    }}
-    .bubble.ai ul li {{
-        margin-bottom: 0.1rem;
-    }}
-
-    .stButton > button {{
-        border: 1px solid var(--theme-color);
-        color: var(--theme-color);
-    }}
-    .stButton > button:hover {{
-        background-color: var(--theme-color);
-        color: white;
     }}
     </style>
     """
@@ -90,7 +67,6 @@ Fast internal knowledge search powered by internal content.
 st.sidebar.markdown("#### Select an option")
 tool = st.sidebar.radio("", ["General", "Bayut", "Dubizzle"])
 
-# Theme colors
 theme_color = "#000000"
 if tool == "Bayut":
     theme_color = "#008060"
@@ -99,47 +75,28 @@ elif tool == "Dubizzle":
 
 st.markdown(get_theme_css(theme_color), unsafe_allow_html=True)
 
-# Manage session keys
+# session states
 tool_key = tool.lower()
 history_key = f"history_{tool_key}"
-query_input_key = f"query_{tool_key}"
+query_key = f"query_{tool_key}"
 
 if history_key not in st.session_state:
     st.session_state[history_key] = []
-if query_input_key not in st.session_state:
-    st.session_state[query_input_key] = ""
 
-# ---------------- FIXED PATH SYSTEM (WORKS IN CLOUD RUN) ----------------
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))   # folder containing app.py
-DATA_DIR = os.path.join(BASE_DIR, "data")               # /app/data in Cloud Run
+if query_key not in st.session_state:
+    st.session_state[query_key] = ""
+
+# ---------------- Data paths ----------------
+DATA_DIR = "/app/data" if os.getenv("CLOUD_RUN") else "data"
 INDEX_DIR = os.path.join(DATA_DIR, "faiss_store")
 
-st.write("📁 DATA DIR:", DATA_DIR)
+st.caption(f"📁 DATA DIR: **{DATA_DIR}**")
 
-# Debug: show files inside /data
-if os.path.exists(DATA_DIR):
-    st.write("📄 Files in data:", os.listdir(DATA_DIR))
-else:
-    st.write("❌ Data folder missing!")
+# show files
+if os.path.isdir(DATA_DIR):
+    st.json(os.listdir(DATA_DIR))
 
-# ---------------- File Matching ----------------
-def find_best_matching_file(query: str):
-    if not os.path.isdir(DATA_DIR):
-        return None
-    files = [f for f in os.listdir(DATA_DIR) if f != "faiss_store"]
-    if not files:
-        return None
-    match = difflib.get_close_matches(
-        query.lower(), [f.lower() for f in files], n=1, cutoff=0.3
-    )
-    if not match:
-        return None
-    for f in files:
-        if f.lower() == match[0]:
-            return os.path.join(DATA_DIR, f)
-    return None
-
-# ---------------- RAG Dependencies ----------------
+# ---------------- Loaders ----------------
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.document_loaders import (
@@ -154,24 +111,25 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 def get_embeddings():
     return HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 
-# Local LLM (Groq)
 def get_local_llm():
+    """Groq LLM wrapper"""
     if os.getenv("USE_DUMMY_LLM", "0") == "1":
         class DummyLLM:
             def invoke(self, text):
-                return type("Resp", (), {"content": "This information is not available in internal content."})
+                return type("Resp", (), {"content": "Dummy model active. No real response."})
         return DummyLLM()
 
     from langchain_groq import ChatGroq
+
     return ChatGroq(
         api_key=os.getenv("GROQ_API_KEY"),
         model="llama-3.1-8b-instant",
         temperature=0,
     )
 
-# ---------------- Document Loading ----------------
 def load_document(path: str):
     ext = os.path.splitext(path)[1].lower()
+
     try:
         if ext == ".pdf":
             return PyPDFLoader(path).load()
@@ -180,12 +138,7 @@ def load_document(path: str):
         if ext in [".txt", ".md"]:
             return TextLoader(path, autodetect_encoding=True).load()
         if ext == ".csv":
-            for enc in ["utf-8", "utf-8-sig", "cp1256", "windows-1256", None]:
-                try:
-                    return CSVLoader(path, encoding=enc).load()
-                except:
-                    continue
-            return []
+            return CSVLoader(path, encoding="utf-8").load()
         if ext == ".xlsx":
             df = pd.read_excel(path)
             return [Document(page_content=df.to_string(index=False), metadata={"source": path})]
@@ -193,91 +146,90 @@ def load_document(path: str):
     except:
         return []
 
-# ---------------- Build Vectorstore ----------------
 def build_vectorstore():
     docs = []
     if not os.path.isdir(DATA_DIR):
         return None
+
     for f in os.listdir(DATA_DIR):
         if f == "faiss_store":
             continue
         full = os.path.join(DATA_DIR, f)
         if os.path.isfile(full):
             docs.extend(load_document(full))
+
     if not docs:
         return None
 
-    splitter = RecursiveCharacterTextSplitter(chunk_size=250, chunk_overlap=50)
+    splitter = RecursiveCharacterTextSplitter(chunk_size=250, chunk_overlap=40)
     chunks = splitter.split_documents(docs)
 
     return FAISS.from_documents(chunks, get_embeddings())
 
-# ---------------- Load / Rebuild FAISS Index ----------------
+# ---------------- Load / Rebuild Index ----------------
 @st.cache_resource
 def get_vectorstore():
     if os.path.exists(INDEX_DIR):
-        try:
-            return FAISS.load_local(
-                INDEX_DIR,
-                get_embeddings(),
-                allow_dangerous_deserialization=True,
-            )
-        except:
-            pass
-
+        return FAISS.load_local(
+            INDEX_DIR,
+            get_embeddings(),
+            allow_dangerous_deserialization=True,
+        )
     store = build_vectorstore()
     if store:
         store.save_local(INDEX_DIR)
     return store
 
 vectorstore = get_vectorstore()
+
 if vectorstore is None:
-    st.error("❌ No documents found in /data. Please add files and rebuild the index.")
+    st.error("❌ No documents found in /data. Please upload files and click **Rebuild Index**.")
     st.stop()
 
-# ---------------- UI ----------------
+# -------------------------------------------
+# Query Input
+# -------------------------------------------
 st.write(f"### {tool}")
 
-query = st.text_input("Ask your question:", key=query_input_key)
+query = st.text_input("Ask your question:", key=query_key)
 
-# Control buttons
 col1, col2, col3 = st.columns(3)
 
 def rebuild_index():
-    if os.path.isdir(INDEX_DIR):
-        shutil.rmtree(INDEX_DIR, ignore_errors=True)
+    shutil.rmtree(INDEX_DIR, ignore_errors=True)
     st.cache_resource.clear()
     st.experimental_rerun()
 
 def clear_chat():
     st.session_state[history_key] = []
-    st.session_state[query_input_key] = ""
+    st.session_state[query_key] = ""
 
-def reload_app():
-    st.experimental_rerun()
+with col1:
+    st.button("Rebuild Index", on_click=rebuild_index)
+with col2:
+    st.button("Clear Chat", on_click=clear_chat)
+with col3:
+    st.button("Reload", on_click=st.experimental_rerun)
 
-col1.button("Rebuild Index", on_click=rebuild_index)
-col2.button("Clear Chat", on_click=clear_chat)
-col3.button("Reload", on_click=reload_app)
-
-# ---------------- Query Execution ----------------
+# -------------------------------------------
+# Run Query
+# -------------------------------------------
 if query.strip():
     retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
-    docs = retriever.invoke(query)
-    if isinstance(docs, dict) and "documents" in docs:
-        docs = docs["documents"]
+    docs = retriever.get_relevant_documents(query)
 
-    context = "\n\n".join(d.page_content[:1800] for d in docs) if docs else ""
+    context = "\n\n".join(d.page_content[:1500] for d in docs)
 
-    history_items = st.session_state[history_key][-5:]
-    history_text = "\n\n".join(
-        f"User: {h['q']}\nAssistant: {h['a']}" for h in history_items
-    ) or "No previous conversation."
+    history_text = "\n".join(
+        f"User: {h['q']}\nAssistant: {h['a']}"
+        for h in st.session_state[history_key][-5:]
+    ) or "No previous history."
 
     llm = get_local_llm()
+
     prompt = f"""
-You are the Bayut & Dubizzle internal knowledge assistant.
-Use ONLY the internal content in CONTEXT plus the CHAT HISTORY.
+You are the Bayut & Dubizzle Internal Knowledge Assistant.
+Use ONLY the text inside CONTEXT and CHAT HISTORY.
 
 CHAT HISTORY:
 {history_text}
@@ -288,37 +240,29 @@ CONTEXT:
 NEW QUESTION:
 {query}
 
-Your task:
-- If the answer exists in CONTEXT and/or CHAT HISTORY:
-  produce JSON with "short_answer", "details", "source".
-- Otherwise output:
-  {{"short_answer":"This information is not available in internal content.","details":[],"source":""}}
-
-Rules:
-- JSON only.
-- No markdown.
+Return JSON:
+- short_answer: one clear sentence
+- details: bullet points
+- source: file name
 """
 
-    resp = llm.invoke(prompt)
-    raw_text = resp.content if hasattr(resp, "content") else str(resp)
+    response = llm.invoke(prompt)
+    raw = response.content if hasattr(response, "content") else str(response)
 
     try:
-        data = json.loads(raw_text)
+        data = json.loads(raw)
     except:
-        data = {"short_answer": raw_text.strip(), "details": [], "source": ""}
+        data = {"short_answer": raw, "details": [], "source": ""}
 
-    short_answer = data.get("short_answer", "").strip()
-    details = data.get("details", [])
-    if isinstance(details, str):
-        details = [details]
-
-    formatted = "Short Answer:\n" + short_answer
-    if details:
-        formatted += "\nDetails:\n" + "\n".join(f"- {d}" for d in details)
+    formatted = f"Short Answer:\n{data['short_answer']}\n\n"
+    if data.get("details"):
+        formatted += "Details:\n" + "\n".join(f"- {d}" for d in data["details"])
 
     st.session_state[history_key].append({"q": query, "a": formatted})
 
-# ---------------- Display Chat ----------------
+# -------------------------------------------
+# Display chat
+# -------------------------------------------
 for item in reversed(st.session_state[history_key]):
     st.markdown(f"<div class='bubble user'>{item['q']}</div>", unsafe_allow_html=True)
     st.markdown(f"<div class='bubble ai'>{item['a']}</div>", unsafe_allow_html=True)
