@@ -75,7 +75,7 @@ elif tool == "Dubizzle":
 
 st.markdown(get_theme_css(theme_color), unsafe_allow_html=True)
 
-# session states
+# session keys
 tool_key = tool.lower()
 history_key = f"history_{tool_key}"
 query_key = f"query_{tool_key}"
@@ -96,6 +96,7 @@ st.caption(f"📁 DATA DIR: **{DATA_DIR}**")
 if os.path.isdir(DATA_DIR):
     st.json(os.listdir(DATA_DIR))
 
+
 # ---------------- Loaders ----------------
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
@@ -107,16 +108,18 @@ from langchain_community.document_loaders import (
 )
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
+
 @st.cache_resource
 def get_embeddings():
     return HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 
+
 def get_local_llm():
-    """Groq LLM wrapper"""
+    """Groq LLM model"""
     if os.getenv("USE_DUMMY_LLM", "0") == "1":
         class DummyLLM:
             def invoke(self, text):
-                return type("Resp", (), {"content": "Dummy model active. No real response."})
+                return type("Resp", (), {"content": "Dummy mode active. No real LLM."})
         return DummyLLM()
 
     from langchain_groq import ChatGroq
@@ -126,6 +129,7 @@ def get_local_llm():
         model="llama-3.1-8b-instant",
         temperature=0,
     )
+
 
 def load_document(path: str):
     ext = os.path.splitext(path)[1].lower()
@@ -145,6 +149,7 @@ def load_document(path: str):
         return []
     except:
         return []
+
 
 def build_vectorstore():
     docs = []
@@ -166,7 +171,8 @@ def build_vectorstore():
 
     return FAISS.from_documents(chunks, get_embeddings())
 
-# ---------------- Load / Rebuild Index ----------------
+
+# ---------------- Index Loader ----------------
 @st.cache_resource
 def get_vectorstore():
     if os.path.exists(INDEX_DIR):
@@ -175,46 +181,50 @@ def get_vectorstore():
             get_embeddings(),
             allow_dangerous_deserialization=True,
         )
+
     store = build_vectorstore()
     if store:
         store.save_local(INDEX_DIR)
     return store
 
+
 vectorstore = get_vectorstore()
 
 if vectorstore is None:
-    st.error("❌ No documents found in /data. Please upload files and click **Rebuild Index**.")
+    st.error("❌ No documents found in /data. Upload files and click **Rebuild Index**.")
     st.stop()
 
-# -------------------------------------------
-# Query Input
-# -------------------------------------------
+
+# ---------------- Query UI ----------------
 st.write(f"### {tool}")
 
 query = st.text_input("Ask your question:", key=query_key)
 
 col1, col2, col3 = st.columns(3)
 
+
 def rebuild_index():
     shutil.rmtree(INDEX_DIR, ignore_errors=True)
     st.cache_resource.clear()
-    st.experimental_rerun()
+    st.rerun()   # FIXED
+
 
 def clear_chat():
     st.session_state[history_key] = []
     st.session_state[query_key] = ""
+
 
 with col1:
     st.button("Rebuild Index", on_click=rebuild_index)
 with col2:
     st.button("Clear Chat", on_click=clear_chat)
 with col3:
-    st.button("Reload", on_click=st.experimental_rerun)
+    st.button("Reload", on_click=st.rerun)   # FIXED
 
-# -------------------------------------------
-# Run Query
-# -------------------------------------------
+
+# ---------------- Run Query ----------------
 if query.strip():
+
     retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
     docs = retriever.get_relevant_documents(query)
 
@@ -241,8 +251,8 @@ NEW QUESTION:
 {query}
 
 Return JSON:
-- short_answer: one clear sentence
-- details: bullet points
+- short_answer: one sentence
+- details: list of bullet points
 - source: file name
 """
 
@@ -254,15 +264,15 @@ Return JSON:
     except:
         data = {"short_answer": raw, "details": [], "source": ""}
 
-    formatted = f"Short Answer:\n{data['short_answer']}\n\n"
+    final_answer = f"Short Answer:\n{data['short_answer']}\n"
+
     if data.get("details"):
-        formatted += "Details:\n" + "\n".join(f"- {d}" for d in data["details"])
+        final_answer += "\nDetails:\n" + "\n".join(f"- {d}" for d in data["details"])
 
-    st.session_state[history_key].append({"q": query, "a": formatted})
+    st.session_state[history_key].append({"q": query, "a": final_answer})
 
-# -------------------------------------------
-# Display chat
-# -------------------------------------------
+
+# ---------------- Chat History Display ----------------
 for item in reversed(st.session_state[history_key]):
     st.markdown(f"<div class='bubble user'>{item['q']}</div>", unsafe_allow_html=True)
     st.markdown(f"<div class='bubble ai'>{item['a']}</div>", unsafe_allow_html=True)
