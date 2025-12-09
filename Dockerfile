@@ -1,26 +1,40 @@
 FROM python:3.10-slim
 
+# Set working directory
 WORKDIR /app
 
-# Install system dependencies required by FAISS + sentence-transformers
+# ----------------------------------------------------
+# Install system dependencies required by FAISS + ST
+# ----------------------------------------------------
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
     libstdc++6 \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy Python dependencies
+# ----------------------------------------------------
+# Install Python requirements
+# ----------------------------------------------------
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy ENTIRE project to the container (including data folder)
+# ----------------------------------------------------
+# Copy application code
+# ----------------------------------------------------
 COPY . .
 
-# DEBUG: Show /app content at build time
-RUN echo "---- DEBUG: Listing /app ----" && ls -R /app
+# ----------------------------------------------------
+# Ensure data folder exists inside the container
+# ----------------------------------------------------
+RUN mkdir -p /app/data
 
+# ----------------------------------------------------
 # Expose port for Streamlit
+# ----------------------------------------------------
 EXPOSE 8080
 
-# Run Streamlit
+# ----------------------------------------------------
+# Run Streamlit on Cloud Run
+# ----------------------------------------------------
 CMD ["streamlit", "run", "app.py", "--server.port=8080", "--server.address=0.0.0.0"]
