@@ -1,24 +1,19 @@
-steps:
-  - name: "gcr.io/cloud-builders/docker"
-    args: ["build", "-t", "gcr.io/$PROJECT_ID/content-ai-suite", "."]
+FROM python:3.10-slim
 
-  - name: "gcr.io/cloud-builders/docker"
-    args: ["push", "gcr.io/$PROJECT_ID/content-ai-suite"]
+WORKDIR /app
 
-  - name: "gcr.io/cloud-builders/gcloud"
-    args:
-      [
-        "run",
-        "deploy",
-        "content-ai-suite",
-        "--image",
-        "gcr.io/$PROJECT_ID/content-ai-suite",
-        "--region",
-        "europe-west1",
-        "--platform",
-        "managed",
-        "--allow-unauthenticated",
-      ]
+# Copy dependency file
+COPY requirements.txt .
 
-images:
-  - "gcr.io/$PROJECT_ID/content-ai-suite"
+RUN pip install --no-cache-dir -r requirements.txt
+
+# COPY APPLICATION CODE
+COPY . .
+
+# IMPORTANT: COPY DATA INTO THE IMAGE
+COPY data /app/data
+
+# EXPOSE STREAMLIT PORT
+EXPOSE 8080
+
+CMD ["streamlit", "run", "app.py", "--server.port=8080", "--server.address=0.0.0.0"]
