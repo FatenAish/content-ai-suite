@@ -5,9 +5,12 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# COPY APPLICATION
+# Copy the entire application
 COPY . .
 
-# RUN STREAMLIT
+# 🔥 EXPLICITLY copy data folder (fixes your issue)
+COPY data /app/data
+
 EXPOSE 8080
+
 CMD ["streamlit", "run", "app.py", "--server.port=8080", "--server.address=0.0.0.0"]
