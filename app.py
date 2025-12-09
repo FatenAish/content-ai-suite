@@ -108,13 +108,14 @@ if history_key not in st.session_state:
 if query_input_key not in st.session_state:
     st.session_state[query_input_key] = ""
 
-# ---------------- Vectorstore Paths (FIXED FOR CLOUD RUN) ----------------
-DATA_DIR = "/app/data"           # <—— FIXED HERE
-INDEX_DIR = os.path.join(DATA_DIR, "faiss_store")
+# ---------------- FIXED FILE PATHS (WORK ON STREAMLIT CLOUD + LOCAL + DOCKER) ----------------
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))       # Folder where app.py lives
+DATA_DIR = os.path.join(BASE_DIR, "data")                   # Correct data path
+INDEX_DIR = os.path.join(DATA_DIR, "faiss_store")           # Where we store FAISS index
 
-st.write("📁 Loading documents from:", DATA_DIR)
+st.write("📁 DATA DIR:", DATA_DIR)
 
-# ---------------- Find Best File ----------------
+# ---------------- File Matching ----------------
 def find_best_matching_file(query: str):
     if not os.path.isdir(DATA_DIR):
         return None
@@ -198,7 +199,7 @@ def build_vectorstore():
     chunks = splitter.split_documents(docs)
     return FAISS.from_documents(chunks, get_embeddings())
 
-# ---------------- Load / Build Index ----------------
+# ---------------- Load or Build FAISS Index ----------------
 @st.cache_resource
 def get_vectorstore():
     if os.path.exists(INDEX_DIR):
@@ -214,13 +215,13 @@ def get_vectorstore():
 
 vectorstore = get_vectorstore()
 if vectorstore is None:
-    st.error("No documents found in /app/data folder. Please add files and rebuild the index.")
+    st.error("❌ No documents found in the data folder. Please add files in /data and rebuild the index.")
     st.stop()
 
 # ---------------- Title ----------------
 st.write(f"### {tool}")
 
-# ---------------- Query Input ----------------
+# ---------------- Query ----------------
 query = st.text_input("Ask your question:", key=query_input_key)
 
 col_spacer_l, col1, col2, col3, col_spacer_r = st.columns([2, 1, 1, 1, 2])
