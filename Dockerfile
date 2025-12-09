@@ -1,6 +1,4 @@
-# -------------------------------------------------------
-# Base Python Image
-# -------------------------------------------------------
+# Base Python
 FROM python:3.10-slim
 
 WORKDIR /app
@@ -9,16 +7,16 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Ensure /app/data exists
+# Copy all application files INCLUDING the data folder
+COPY . ./ 
+
+# Move your data folder into the correct directory
+RUN mv /data /app/data
+
+# Make sure the folder exists
 RUN mkdir -p /app/data
 
-# Copy ONLY the data folder first (so it doesn’t get overwritten)
-COPY data /app/data
-
-# Copy ALL other project files
-COPY . .
-
-# Streamlit configuration
+# Streamlit configuration for Cloud Run
 ENV STREAMLIT_SERVER_PORT=8080
 ENV STREAMLIT_SERVER_ENABLE_CORS=false
 ENV STREAMLIT_SERVER_ENABLE_XSRF_PROTECTION=false
