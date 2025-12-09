@@ -2,10 +2,12 @@ import streamlit as st
 import os
 import time
 
+# LangChain imports (updated for v0.2)
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.document_loaders import TextLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+
 
 # -----------------------------
 # STREAMLIT PAGE SETUP
@@ -36,11 +38,15 @@ st.markdown("""
     </p>
 """, unsafe_allow_html=True)
 
+
 # -----------------------------
-# DATA DIR DISPLAY
+# DATA DIRECTORY
 # -----------------------------
 DATA_DIR = "./data"
-st.markdown(f"### 📁 DATA DIR: `/app/data`")
+FAISS_DIR = os.path.join(DATA_DIR, "faiss_store")
+
+st.markdown(f"### 📁 DATA DIR: `{DATA_DIR}`")
+
 
 # -----------------------------
 # EMBEDDINGS MODEL
@@ -49,24 +55,21 @@ embeddings = HuggingFaceEmbeddings(
     model_name="sentence-transformers/all-MiniLM-L6-v2"
 )
 
-# -----------------------------
-# VECTOR STORE PATH
-# -----------------------------
-FAISS_DIR = os.path.join(DATA_DIR, "faiss_store")
-
 
 # -----------------------------
 # LOAD VECTORSTORE
 # -----------------------------
 def load_vectorstore():
+    """Loads FAISS index if available."""
     if os.path.exists(FAISS_DIR):
         try:
             return FAISS.load_local(
-                FAISS_DIR, 
-                embeddings, 
+                FAISS_DIR,
+                embeddings,
                 allow_dangerous_deserialization=True
             )
-        except:
+        except Exception as e:
+            st.error(f"Error loading FAISS index: {e}")
             return None
     return None
 
@@ -75,7 +78,9 @@ def load_vectorstore():
 # BUILD VECTORSTORE
 # -----------------------------
 def build_vectorstore():
+    """Reads text files, splits them, builds FAISS."""
     documents = []
+
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=800,
         chunk_overlap=80
@@ -103,28 +108,29 @@ retriever = vectorstore.as_retriever(search_kwargs={"k": 4})
 
 
 # -----------------------------
-# USER INPUT
+# QUERY INPUT
 # -----------------------------
 st.subheader(mode)
 query = st.text_input("Ask your question:")
 
 
 # -----------------------------
-# PROCESS QUERY (FIXED!)
+# PROCESS QUERY
 # -----------------------------
 if query:
     with st.spinner("Searching internal knowledge..."):
         time.sleep(0.2)
 
-        # NEW API — replacing deprecated get_relevant_documents()
+        # NEW API: retriever.invoke()
         docs = retriever.invoke(query)
 
         if not docs:
-            st.write("I couldn't find anything related to this question in the internal documents.")
+            st.write("I couldn't find anything related to this question.")
         else:
-            st.markdown("### Here’s what I found:")
+            st.markdown("### 🔎 Results Found:")
             for d in docs:
-                st.markdown(f"**Source:** {d.metadata.get('source', 'Unknown File')}")
+                file_name = d.metadata.get("source", "Unknown File")
+                st.markdown(f"**📄 Source:** {file_name}")
                 st.write(d.page_content)
                 st.markdown("---")
 
