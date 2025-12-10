@@ -13,12 +13,8 @@ steps:
         "content-ai-suite",
         "--image",
         "gcr.io/$PROJECT_ID/content-ai-suite",
-        "--region",
-        "europe-west1",
-        "--platform",
-        "managed",
+        "--region=europe-west1",
+        "--platform=managed",
         "--allow-unauthenticated",
+        "--port=8080"
       ]
-
-images:
-  - "gcr.io/$PROJECT_ID/content-ai-suite"
