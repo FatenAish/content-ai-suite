@@ -7,7 +7,6 @@ from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
-from langchain_openai import ChatOpenAI  # uses OpenAI for answering
 
 
 # ============================================================
@@ -131,16 +130,7 @@ vectorstore = load_vectorstore()
 if vectorstore is None:
     vectorstore = build_vectorstore()
 
-retriever = vectorstore.as_retriever(search_kwargs={"k": 1})  # IMPORTANT: ONLY 1 CHUNK
-
-
-# ============================================================
-# AI MODEL (OpenAI)
-# ============================================================
-llm = ChatOpenAI(
-    model="gpt-4o-mini",
-    temperature=0
-)
+retriever = vectorstore.as_retriever(search_kwargs={"k": 1})  # ONLY ONE ANSWER
 
 
 # ============================================================
@@ -151,7 +141,7 @@ query = st.text_input("Ask your question:")
 
 
 # ============================================================
-# SEARCH + AI FINAL ANSWER
+# SEARCH – ONE ANSWER ONLY (NO LLM)
 # ============================================================
 if query:
     with st.spinner("Searching internal knowledge..."):
@@ -160,27 +150,15 @@ if query:
         if not docs:
             st.write("No matching internal information found.")
         else:
-            context = docs[0].page_content
+            best = docs[0]  # the top result
 
-            final_answer = llm.invoke(f"""
-            Answer the following question using ONLY the provided context.
-
-            Question:
-            {query}
-
-            Context:
-            {context}
-
-            Answer in one short, clear paragraph:
-            """)
-
-            st.markdown("### ✅ Final Answer")
-            st.write(final_answer.content)
+            st.markdown("### ✅ Best Match")
+            st.write(best.page_content)
 
             st.markdown("---")
-            st.markdown("### 📄 Source Used")
-            st.write(context)
-            st.markdown(f"**Source file:** {docs[0].metadata.get('source')}")
+            st.markdown("### 📄 Source")
+            st.write(f"File: {best.metadata.get('source')}")
+
 
 # ============================================================
 # REBUILD INDEX
