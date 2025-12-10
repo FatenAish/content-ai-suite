@@ -18,7 +18,7 @@ st.set_page_config(
 )
 
 # ============================================================
-# CHAT HISTORY STATE
+# CHAT HISTORY STATE (INVISIBLE)
 # ============================================================
 if "history" not in st.session_state:
     st.session_state.history = []
@@ -38,7 +38,7 @@ with st.sidebar:
 
 
 # ============================================================
-# HEADER (same design)
+# HEADER
 # ============================================================
 st.markdown(
     """
@@ -59,7 +59,7 @@ st.markdown(
 
 
 # ============================================================
-# DATA DIR (INTERNAL ONLY)
+# DATA DIR (HIDDEN)
 # ============================================================
 DATA_DIR = "/app/data"
 LOCAL_FALLBACK = "./data"
@@ -82,7 +82,7 @@ FAISS_DIR = os.path.join(DATA_DIR, "faiss_store")
 
 
 # ============================================================
-# BUILD VECTORSTORE (safe)
+# BUILD VECTORSTORE (SAFE)
 # ============================================================
 def build_vectorstore():
     documents = []
@@ -91,8 +91,12 @@ def build_vectorstore():
     for file in os.listdir(DATA_DIR):
         if file.endswith(".txt"):
             try:
-                file_path = os.path.join(DATA_DIR, file)
-                with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                with open(
+                    os.path.join(DATA_DIR, file), 
+                    "r", 
+                    encoding="utf-8", 
+                    errors="ignore"
+                ) as f:
                     text = f.read()
 
                 if not text.strip():
@@ -101,9 +105,7 @@ def build_vectorstore():
                 chunks = splitter.split_text(text)
 
                 for c in chunks:
-                    documents.append(
-                        Document(page_content=c, metadata={"source": file})
-                    )
+                    documents.append(Document(page_content=c, metadata={"source": file}))
 
             except:
                 continue
@@ -139,18 +141,18 @@ vectorstore = load_vectorstore()
 if vectorstore is None:
     vectorstore = build_vectorstore()
 
-retriever = vectorstore.as_retriever(search_kwargs={"k": 1})  # ONE CLEAN MATCH
+retriever = vectorstore.as_retriever(search_kwargs={"k": 1})  # ONE MATCH
 
 
 # ============================================================
-# CLEAN ANSWER EXTRACTOR
+# CLEAN ANSWER EXTRACTION
 # ============================================================
 def extract_clean_answer(raw_text, user_question):
 
     raw = raw_text.strip()
     user_q = user_question.lower().strip()
 
-    parts = raw.split("Q")  # e.g. Q4, Q5, etc.
+    parts = raw.split("Q")
     best_section = ""
 
     for p in parts:
@@ -163,7 +165,7 @@ def extract_clean_answer(raw_text, user_question):
             break
 
     if not best_section:
-        return raw  # fallback
+        return raw
 
     if "–" in best_section:
         best_section = best_section.split("–", 1)[1].strip()
@@ -172,14 +174,14 @@ def extract_clean_answer(raw_text, user_question):
 
 
 # ============================================================
-# INPUT
+# INPUT FIELD
 # ============================================================
 st.subheader(mode)
 query = st.text_input("Ask your question:")
 
 
 # ============================================================
-# SEARCH + SAVE HISTORY
+# SEARCH + SAVE TO CHAT FEED
 # ============================================================
 if query:
     with st.spinner("Searching internal knowledge..."):
@@ -189,7 +191,6 @@ if query:
             best = docs[0]
             clean_answer = extract_clean_answer(best.page_content, query)
 
-            # SAVE TO SESSION HISTORY
             st.session_state.history.append({
                 "question": query,
                 "answer": clean_answer
@@ -202,23 +203,21 @@ if query:
 
 
 # ============================================================
-# DISPLAY CHAT HISTORY (newest at top)
+# DISPLAY CHAT (NEWEST FIRST — NO HISTORY LABEL)
 # ============================================================
-if st.session_state.history:
-    st.markdown("## 📝 Chat History")
+for item in reversed(st.session_state.history):
 
-    for item in reversed(st.session_state.history):
-        st.markdown("### ❓ Question")
-        st.write(item["question"])
+    st.markdown("### ❓ Question")
+    st.write(item["question"])
 
-        st.markdown("### ✅ Answer")
-        st.write(item["answer"])
+    st.markdown("### ✅ Answer")
+    st.write(item["answer"])
 
-        st.markdown("---")
+    st.markdown("---")
 
 
 # ============================================================
-# REBUILD INDEX BUTTON
+# REBUILD BUTTON
 # ============================================================
 if st.button("Rebuild Index"):
     vectorstore = build_vectorstore()
