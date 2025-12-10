@@ -1,6 +1,5 @@
 import streamlit as st
 import os
-import time
 
 # LangChain imports
 from langchain_community.vectorstores import FAISS
@@ -16,6 +15,7 @@ st.set_page_config(
     page_title="Bayut & Dubizzle AI Content Assistant",
     layout="wide"
 )
+
 
 # ============================================================
 # CHAT HISTORY STATE
@@ -51,7 +51,7 @@ st.markdown("""
 
 
 # ============================================================
-# DATA DIR (HIDDEN)
+# DATA DIRECTORY HANDLING
 # ============================================================
 DATA_DIR = "/app/data"
 LOCAL_FALLBACK = "./data"
@@ -60,7 +60,7 @@ if os.path.exists(LOCAL_FALLBACK):
 
 
 # ============================================================
-# EMBEDDINGS
+# EMBEDDINGS MODEL
 # ============================================================
 embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 
@@ -87,9 +87,9 @@ def build_vectorstore():
                 if not text.strip():
                     continue
 
-                chunks = splitter.split_text(text)
-                for c in chunks:
-                    documents.append(Document(page_content=c, metadata={"source": file}))
+                for chunk in splitter.split_text(text):
+                    documents.append(Document(page_content=chunk, metadata={"source": file}))
+
             except:
                 continue
 
@@ -107,14 +107,18 @@ def build_vectorstore():
 def load_vectorstore():
     if os.path.exists(FAISS_DIR):
         try:
-            return FAISS.load_local(FAISS_DIR, embeddings, allow_dangerous_deserialization=True)
+            return FAISS.load_local(
+                FAISS_DIR,
+                embeddings,
+                allow_dangerous_deserialization=True
+            )
         except:
             return None
     return None
 
 
 # ============================================================
-# INIT VECTORSTORE
+# INITIALIZE VECTORSTORE
 # ============================================================
 vectorstore = load_vectorstore() or build_vectorstore()
 retriever = vectorstore.as_retriever(search_kwargs={"k": 1})
@@ -125,52 +129,55 @@ retriever = vectorstore.as_retriever(search_kwargs={"k": 1})
 # ============================================================
 def extract_clean_answer(raw_text, user_question):
     raw = raw_text.strip()
-    user_q = user_question.lower().strip()
-    parts = raw.split("Q")
-    best_section = ""
+    user_q = user_question.lower()
 
-    for p in parts:
-        section = p.strip()
-        if not section:
-            continue
-        if user_q in section.lower():
-            best_section = section
+    sections = raw.split("Q")
+    best = ""
+
+    for sec in sections:
+        if user_q in sec.lower():
+            best = sec
             break
 
-    if not best_section:
+    if not best:
         return raw
 
-    if "–" in best_section:
-        best_section = best_section.split("–", 1)[1].strip()
+    if "–" in best:
+        best = best.split("–", 1)[1].strip()
 
-    return best_section
+    return best
 
 
 # ============================================================
-# INPUT
+# INPUT FIELD
 # ============================================================
 st.subheader(mode)
 query = st.text_input("Ask your question:")
 
 
 # ============================================================
-# BUTTONS (Centered, Side-by-Side)
+# CENTERED BUTTONS (FIXED)
 # ============================================================
-col1, col2, col3 = st.columns([1, 1, 1])
+colA, colB, colC, colD = st.columns([1, 1, 1, 1])
 
-with col2:
+with colB:
     clear_clicked = st.button("🗑️ Clear Chat", use_container_width=True)
 
-with col3:
+with colC:
     rebuild_clicked = st.button("🔄 Rebuild Index", use_container_width=True)
 
 
-# Clear Chat Logic
+# ============================================================
+# CLEAR CHAT (NOW WORKS 100%)
+# ============================================================
 if clear_clicked:
     st.session_state.history = []
     st.rerun()
 
-# Rebuild Index Logic
+
+# ============================================================
+# REBUILD INDEX
+# ============================================================
 if rebuild_clicked:
     vectorstore = build_vectorstore()
     retriever = vectorstore.as_retriever(search_kwargs={"k": 1})
@@ -179,20 +186,18 @@ if rebuild_clicked:
 
 
 # ============================================================
-# SEARCH + SAVE HISTORY
+# PROCESS QUERY
 # ============================================================
 if query:
     with st.spinner("Searching internal knowledge..."):
         docs = retriever.invoke(query)
 
         if docs:
-            clean_answer = extract_clean_answer(docs[0].page_content, query)
+            clean = extract_clean_answer(docs[0].page_content, query)
         else:
-            clean_answer = "No matching internal information found."
+            clean = "No matching internal information found."
 
-        st.session_state.history.append(
-            {"question": query, "answer": clean_answer}
-        )
+        st.session_state.history.append({"question": query, "answer": clean})
 
 
 # ============================================================
