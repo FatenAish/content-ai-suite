@@ -1,3 +1,6 @@
+import os
+os.environ["STREAMLIT_SERVER_ENABLE_CORS"] = "false"
+os.environ["STREAMLIT_SERVER_HEADLESS"] = "true"
 import streamlit as st
 import os
 
