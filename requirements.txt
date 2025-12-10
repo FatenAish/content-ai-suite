@@ -1,9 +1,8 @@
 streamlit
-pandas
-numpy
-langchain
 langchain-community
+langchain-openai
+langchain-text-splitters
+langchain-core
 faiss-cpu
-requests
+transformers
 sentence-transformers
-langchain-groq
