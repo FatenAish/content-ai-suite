@@ -152,29 +152,47 @@ def extract_clean_answer(raw_text, user_question):
 st.subheader(mode)
 query = st.text_input("Ask your question:")
 
-# Clear Chat Button
-if st.button("🗑️ Clear Chat"):
+
+# ============================================================
+# BUTTONS (Centered, Side-by-Side)
+# ============================================================
+col1, col2, col3 = st.columns([1, 1, 1])
+
+with col2:
+    clear_clicked = st.button("🗑️ Clear Chat", use_container_width=True)
+
+with col3:
+    rebuild_clicked = st.button("🔄 Rebuild Index", use_container_width=True)
+
+
+# Clear Chat Logic
+if clear_clicked:
     st.session_state.history = []
-    st.experimental_rerun()
+    st.rerun()
+
+# Rebuild Index Logic
+if rebuild_clicked:
+    vectorstore = build_vectorstore()
+    retriever = vectorstore.as_retriever(search_kwargs={"k": 1})
+    st.success("Index rebuilt successfully!")
+    st.rerun()
 
 
 # ============================================================
-# SEARCH + SAVE TO CHAT FEED
+# SEARCH + SAVE HISTORY
 # ============================================================
 if query:
     with st.spinner("Searching internal knowledge..."):
         docs = retriever.invoke(query)
 
         if docs:
-            best = docs[0]
-            clean_answer = extract_clean_answer(best.page_content, query)
+            clean_answer = extract_clean_answer(docs[0].page_content, query)
         else:
             clean_answer = "No matching internal information found."
 
-        st.session_state.history.append({
-            "question": query,
-            "answer": clean_answer
-        })
+        st.session_state.history.append(
+            {"question": query, "answer": clean_answer}
+        )
 
 
 # ============================================================
@@ -188,12 +206,3 @@ for item in reversed(st.session_state.history):
     st.write(item["answer"])
 
     st.markdown("---")
-
-
-# ============================================================
-# REBUILD INDEX BUTTON
-# ============================================================
-if st.button("Rebuild Index"):
-    vectorstore = build_vectorstore()
-    retriever = vectorstore.as_retriever(search_kwargs={"k": 1})
-    st.success("Index rebuilt successfully!")
