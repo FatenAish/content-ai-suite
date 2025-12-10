@@ -2,11 +2,11 @@ import streamlit as st
 import os
 import time
 
-# LangChain imports (updated for latest versions)
+# LangChain imports
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain_community.document_loaders import TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_core.documents import Document
 
 
 # ============================================================
@@ -32,7 +32,7 @@ with st.sidebar:
 
 
 # ============================================================
-# HEADER (matches your screenshot exactly)
+# HEADER (EXACT DESIGN)
 # ============================================================
 st.markdown(
     """
@@ -53,12 +53,11 @@ st.markdown(
 
 
 # ============================================================
-# DATA DIRECTORY DISPLAY (exact look from screenshot)
+# DATA DIR (EXACT LIKE SCREENSHOT)
 # ============================================================
-DATA_DIR = "/app/data"  # Matches screenshot directory
-LOCAL_FALLBACK = "./data"  # For local development
+DATA_DIR = "/app/data"
+LOCAL_FALLBACK = "./data"
 
-# If running locally, use ./data instead of /app/data
 if os.path.exists(LOCAL_FALLBACK):
     DATA_DIR = LOCAL_FALLBACK
 
@@ -87,7 +86,45 @@ FAISS_DIR = os.path.join(DATA_DIR, "faiss_store")
 
 
 # ============================================================
-# LOAD VECTORSTORE
+# SAFE VECTORSTORE BUILDER (NO CRASHING)
+# ============================================================
+def build_vectorstore():
+    documents = []
+    splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=80)
+
+    for file in os.listdir(DATA_DIR):
+        if not file.endswith(".txt"):
+            continue
+
+        file_path = os.path.join(DATA_DIR, file)
+
+        try:
+            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                text = f.read()
+
+            if not text.strip():
+                st.warning(f"⚠️ Skipping empty file: {file}")
+                continue
+
+            splits = splitter.split_text(text)
+            docs = [Document(page_content=s, metadata={"source": file}) for s in splits]
+            documents.extend(docs)
+
+        except Exception as e:
+            st.error(f"❌ Error reading file `{file}` — {e}")
+            continue
+
+    if not documents:
+        st.error("❌ No readable text files found. Cannot create index.")
+        return None
+
+    db = FAISS.from_documents(documents, embeddings)
+    db.save_local(FAISS_DIR)
+    return db
+
+
+# ============================================================
+# LOAD VECTORSTORE (SAFE)
 # ============================================================
 def load_vectorstore():
     if os.path.exists(FAISS_DIR):
@@ -98,54 +135,35 @@ def load_vectorstore():
                 allow_dangerous_deserialization=True
             )
         except Exception as e:
-            st.error(f"Failed to load existing FAISS index: {e}")
+            st.error(f"❌ Could not load FAISS index: {e}")
             return None
     return None
 
 
 # ============================================================
-# BUILD VECTORSTORE
-# ============================================================
-def build_vectorstore():
-    documents = []
-    splitter = RecursiveCharacterTextSplitter(
-        chunk_size=800,
-        chunk_overlap=80
-    )
-
-    # Load all .txt files from data directory
-    for file in os.listdir(DATA_DIR):
-        if file.endswith(".txt"):
-            loader = TextLoader(os.path.join(DATA_DIR, file), encoding="utf-8")
-            pages = loader.load()
-            documents.extend(splitter.split_documents(pages))
-
-    db = FAISS.from_documents(documents, embeddings)
-    db.save_local(FAISS_DIR)
-    return db
-
-
-# ============================================================
-# LOAD OR BUILD VECTOR INDEX
+# INIT VECTORSTORE
 # ============================================================
 vectorstore = load_vectorstore()
 if vectorstore is None:
     vectorstore = build_vectorstore()
 
-retriever = vectorstore.as_retriever(search_kwargs={"k": 4})
+if vectorstore:
+    retriever = vectorstore.as_retriever(search_kwargs={"k": 4})
+else:
+    retriever = None
 
 
 # ============================================================
-# USER QUERY
+# SEARCH UI
 # ============================================================
 st.subheader(mode)
 query = st.text_input("Ask your question:")
 
 
 # ============================================================
-# SEARCH FUNCTIONALITY (RAG retrieval ONLY — no LLM)
+# PERFORM SEARCH
 # ============================================================
-if query:
+if query and retriever:
     with st.spinner("Searching internal knowledge..."):
         time.sleep(0.3)
 
@@ -162,10 +180,13 @@ if query:
 
 
 # ============================================================
-# REBUILD INDEX BUTTON
+# REBUILD BUTTON
 # ============================================================
 if st.button("Rebuild Index"):
     with st.spinner("Rebuilding vector index..."):
         vectorstore = build_vectorstore()
-        retriever = vectorstore.as_retriever(search_kwargs={"k": 4})
-        st.success("Index rebuilt successfully!")
+        if vectorstore:
+            retriever = vectorstore.as_retriever(search_kwargs={"k": 4})
+            st.success("Index rebuilt successfully!")
+        else:
+            st.error("Index could not be built.")
