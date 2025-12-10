@@ -2,65 +2,94 @@ import streamlit as st
 import os
 import time
 
-# LangChain imports (updated for v0.2)
+# LangChain imports (updated for latest versions)
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.document_loaders import TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 
-# -----------------------------
-# STREAMLIT PAGE SETUP
-# -----------------------------
+# ============================================================
+# PAGE CONFIG
+# ============================================================
 st.set_page_config(
     page_title="Bayut & Dubizzle AI Content Assistant",
     layout="wide"
 )
 
-# -----------------------------
-# SIDEBAR MENU
-# -----------------------------
+
+# ============================================================
+# SIDEBAR
+# ============================================================
 with st.sidebar:
-    st.header("Select an option")
+    st.markdown(
+        """
+        <h4 style="margin-top: 30px;">Select an option</h4>
+        """,
+        unsafe_allow_html=True
+    )
     mode = st.radio("", ["General", "Bayut", "Dubizzle"])
 
-# -----------------------------
-# HEADER
-# -----------------------------
-st.markdown("""
-    <h1 style='font-size:42px;'>
-        <span style='color:#0E8A6D;'>Bayut</span> & 
-        <span style='color:#D71920;'>Dubizzle</span> 
-        AI Content Assistant
-    </h1>
-    <p style='font-size:18px; color:#444; margin-top:-10px;'>
-        Fast internal knowledge search powered by internal content.
-    </p>
-""", unsafe_allow_html=True)
+
+# ============================================================
+# HEADER (matches your screenshot exactly)
+# ============================================================
+st.markdown(
+    """
+    <div style="text-align:center; margin-top:-30px;">
+        <h1 style="font-size:42px; font-weight:700;">
+            <span style="color:#0E8A6D;">Bayut</span> 
+            & 
+            <span style="color:#D71920;">Dubizzle</span>
+            AI Content Assistant
+        </h1>
+        <p style="font-size:16px; color:#444; margin-top:-15px;">
+            Fast internal knowledge search powered by internal content.
+        </p>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
 
-# -----------------------------
-# DATA DIRECTORY
-# -----------------------------
-DATA_DIR = "./data"
-FAISS_DIR = os.path.join(DATA_DIR, "faiss_store")
+# ============================================================
+# DATA DIRECTORY DISPLAY (exact look from screenshot)
+# ============================================================
+DATA_DIR = "/app/data"  # Matches screenshot directory
+LOCAL_FALLBACK = "./data"  # For local development
 
-st.markdown(f"### 📁 DATA DIR: `{DATA_DIR}`")
+# If running locally, use ./data instead of /app/data
+if os.path.exists(LOCAL_FALLBACK):
+    DATA_DIR = LOCAL_FALLBACK
+
+st.markdown(
+    f"""
+    <div style="font-size:18px; margin-top:20px;">
+        📁 <strong>DATA DIR:</strong> {DATA_DIR}
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
 
-# -----------------------------
-# EMBEDDINGS MODEL
-# -----------------------------
+# ============================================================
+# EMBEDDINGS
+# ============================================================
 embeddings = HuggingFaceEmbeddings(
     model_name="sentence-transformers/all-MiniLM-L6-v2"
 )
 
 
-# -----------------------------
+# ============================================================
+# VECTORSTORE PATH
+# ============================================================
+FAISS_DIR = os.path.join(DATA_DIR, "faiss_store")
+
+
+# ============================================================
 # LOAD VECTORSTORE
-# -----------------------------
+# ============================================================
 def load_vectorstore():
-    """Loads FAISS index if available."""
     if os.path.exists(FAISS_DIR):
         try:
             return FAISS.load_local(
@@ -69,23 +98,22 @@ def load_vectorstore():
                 allow_dangerous_deserialization=True
             )
         except Exception as e:
-            st.error(f"Error loading FAISS index: {e}")
+            st.error(f"Failed to load existing FAISS index: {e}")
             return None
     return None
 
 
-# -----------------------------
+# ============================================================
 # BUILD VECTORSTORE
-# -----------------------------
+# ============================================================
 def build_vectorstore():
-    """Reads text files, splits them, builds FAISS."""
     documents = []
-
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=800,
         chunk_overlap=80
     )
 
+    # Load all .txt files from data directory
     for file in os.listdir(DATA_DIR):
         if file.endswith(".txt"):
             loader = TextLoader(os.path.join(DATA_DIR, file), encoding="utf-8")
@@ -97,9 +125,9 @@ def build_vectorstore():
     return db
 
 
-# -----------------------------
-# LOAD OR BUILD INDEX
-# -----------------------------
+# ============================================================
+# LOAD OR BUILD VECTOR INDEX
+# ============================================================
 vectorstore = load_vectorstore()
 if vectorstore is None:
     vectorstore = build_vectorstore()
@@ -107,37 +135,35 @@ if vectorstore is None:
 retriever = vectorstore.as_retriever(search_kwargs={"k": 4})
 
 
-# -----------------------------
-# QUERY INPUT
-# -----------------------------
+# ============================================================
+# USER QUERY
+# ============================================================
 st.subheader(mode)
 query = st.text_input("Ask your question:")
 
 
-# -----------------------------
-# PROCESS QUERY
-# -----------------------------
+# ============================================================
+# SEARCH FUNCTIONALITY (RAG retrieval ONLY — no LLM)
+# ============================================================
 if query:
     with st.spinner("Searching internal knowledge..."):
-        time.sleep(0.2)
+        time.sleep(0.3)
 
-        # NEW API: retriever.invoke()
         docs = retriever.invoke(query)
 
         if not docs:
-            st.write("I couldn't find anything related to this question.")
+            st.write("No matching internal information found.")
         else:
             st.markdown("### 🔎 Results Found:")
             for d in docs:
-                file_name = d.metadata.get("source", "Unknown File")
-                st.markdown(f"**📄 Source:** {file_name}")
+                st.markdown(f"**📄 Source:** {d.metadata.get('source', 'Unknown')}")
                 st.write(d.page_content)
                 st.markdown("---")
 
 
-# -----------------------------
+# ============================================================
 # REBUILD INDEX BUTTON
-# -----------------------------
+# ============================================================
 if st.button("Rebuild Index"):
     with st.spinner("Rebuilding vector index..."):
         vectorstore = build_vectorstore()
