@@ -30,7 +30,7 @@ with st.sidebar:
     mode = st.radio("", ["General", "Bayut", "Dubizzle"])
 
 # ============================================================
-# HEADER
+# HEADER (same as your screenshot)
 # ============================================================
 st.markdown(
     """
@@ -49,22 +49,15 @@ st.markdown(
     unsafe_allow_html=True
 )
 
+
 # ============================================================
-# DATA DIR
+# DATA DIR INTERNAL (NOT DISPLAYED)
 # ============================================================
 DATA_DIR = "/app/data"
 LOCAL_FALLBACK = "./data"
 if os.path.exists(LOCAL_FALLBACK):
     DATA_DIR = LOCAL_FALLBACK
 
-st.markdown(
-    f"""
-    <div style="font-size:18px; margin-top:20px;">
-        📁 <strong>DATA DIR:</strong> {DATA_DIR}
-    </div>
-    """,
-    unsafe_allow_html=True
-)
 
 # ============================================================
 # EMBEDDINGS
@@ -88,7 +81,12 @@ def build_vectorstore():
     for file in os.listdir(DATA_DIR):
         if file.endswith(".txt"):
             try:
-                with open(os.path.join(DATA_DIR, file), "r", encoding="utf-8", errors="ignore") as f:
+                with open(
+                    os.path.join(DATA_DIR, file),
+                    "r",
+                    encoding="utf-8",
+                    errors="ignore"
+                ) as f:
                     text = f.read()
 
                 if not text.strip():
@@ -96,7 +94,9 @@ def build_vectorstore():
 
                 chunks = splitter.split_text(text)
                 for c in chunks:
-                    documents.append(Document(page_content=c, metadata={"source": file}))
+                    documents.append(
+                        Document(page_content=c, metadata={"source": file})
+                    )
 
             except:
                 continue
@@ -107,6 +107,7 @@ def build_vectorstore():
     db = FAISS.from_documents(documents, embeddings)
     db.save_local(FAISS_DIR)
     return db
+
 
 # ============================================================
 # LOAD VECTORSTORE
@@ -123,6 +124,7 @@ def load_vectorstore():
             return None
     return None
 
+
 # ============================================================
 # INIT VECTORSTORE
 # ============================================================
@@ -130,7 +132,7 @@ vectorstore = load_vectorstore()
 if vectorstore is None:
     vectorstore = build_vectorstore()
 
-retriever = vectorstore.as_retriever(search_kwargs={"k": 1})  # ONLY ONE ANSWER
+retriever = vectorstore.as_retriever(search_kwargs={"k": 1})  # One clean answer
 
 
 # ============================================================
@@ -141,7 +143,7 @@ query = st.text_input("Ask your question:")
 
 
 # ============================================================
-# SEARCH – ONE ANSWER ONLY (NO LLM)
+# SEARCH – CLEAN ONE-ANSWER SYSTEM
 # ============================================================
 if query:
     with st.spinner("Searching internal knowledge..."):
@@ -150,10 +152,15 @@ if query:
         if not docs:
             st.write("No matching internal information found.")
         else:
-            best = docs[0]  # the top result
+            best = docs[0]
+
+            # Clean answer: remove Q-number prefixes like "Q4 –"
+            text = best.page_content.strip()
+            if "–" in text[:10]:  # dash appears early → remove question label
+                text = text.split("–", 1)[1].strip()
 
             st.markdown("### ✅ Best Match")
-            st.write(best.page_content)
+            st.write(text)
 
             st.markdown("---")
             st.markdown("### 📄 Source")
