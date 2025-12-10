@@ -18,7 +18,7 @@ st.set_page_config(
 )
 
 # ============================================================
-# CHAT HISTORY STATE (INVISIBLE)
+# CHAT HISTORY STATE
 # ============================================================
 if "history" not in st.session_state:
     st.session_state.history = []
@@ -28,34 +28,26 @@ if "history" not in st.session_state:
 # SIDEBAR
 # ============================================================
 with st.sidebar:
-    st.markdown(
-        """
-        <h4 style="margin-top: 30px;">Select an option</h4>
-        """,
-        unsafe_allow_html=True
-    )
+    st.markdown("<h4 style='margin-top: 30px;'>Select an option</h4>", unsafe_allow_html=True)
     mode = st.radio("", ["General", "Bayut", "Dubizzle"])
 
 
 # ============================================================
 # HEADER
 # ============================================================
-st.markdown(
-    """
-    <div style="text-align:center; margin-top:-30px;">
-        <h1 style="font-size:42px; font-weight:700;">
-            <span style="color:#0E8A6D;">Bayut</span> 
-            & 
-            <span style="color:#D71920;">Dubizzle</span>
-            AI Content Assistant
-        </h1>
-        <p style="font-size:16px; color:#444; margin-top:-15px;">
-            Fast internal knowledge search powered by internal content.
-        </p>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+st.markdown("""
+<div style="text-align:center; margin-top:-30px;">
+    <h1 style="font-size:42px; font-weight:700;">
+        <span style="color:#0E8A6D;">Bayut</span> 
+        & 
+        <span style="color:#D71920;">Dubizzle</span>
+        AI Content Assistant
+    </h1>
+    <p style="font-size:16px; color:#444; margin-top:-15px;">
+        Fast internal knowledge search powered by internal content.
+    </p>
+</div>
+""", unsafe_allow_html=True)
 
 
 # ============================================================
@@ -70,9 +62,7 @@ if os.path.exists(LOCAL_FALLBACK):
 # ============================================================
 # EMBEDDINGS
 # ============================================================
-embeddings = HuggingFaceEmbeddings(
-    model_name="sentence-transformers/all-MiniLM-L6-v2"
-)
+embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 
 
 # ============================================================
@@ -82,7 +72,7 @@ FAISS_DIR = os.path.join(DATA_DIR, "faiss_store")
 
 
 # ============================================================
-# BUILD VECTORSTORE (SAFE)
+# BUILD VECTORSTORE
 # ============================================================
 def build_vectorstore():
     documents = []
@@ -91,22 +81,15 @@ def build_vectorstore():
     for file in os.listdir(DATA_DIR):
         if file.endswith(".txt"):
             try:
-                with open(
-                    os.path.join(DATA_DIR, file), 
-                    "r", 
-                    encoding="utf-8", 
-                    errors="ignore"
-                ) as f:
+                with open(os.path.join(DATA_DIR, file), "r", encoding="utf-8", errors="ignore") as f:
                     text = f.read()
 
                 if not text.strip():
                     continue
 
                 chunks = splitter.split_text(text)
-
                 for c in chunks:
                     documents.append(Document(page_content=c, metadata={"source": file}))
-
             except:
                 continue
 
@@ -124,11 +107,7 @@ def build_vectorstore():
 def load_vectorstore():
     if os.path.exists(FAISS_DIR):
         try:
-            return FAISS.load_local(
-                FAISS_DIR,
-                embeddings,
-                allow_dangerous_deserialization=True
-            )
+            return FAISS.load_local(FAISS_DIR, embeddings, allow_dangerous_deserialization=True)
         except:
             return None
     return None
@@ -137,21 +116,16 @@ def load_vectorstore():
 # ============================================================
 # INIT VECTORSTORE
 # ============================================================
-vectorstore = load_vectorstore()
-if vectorstore is None:
-    vectorstore = build_vectorstore()
-
-retriever = vectorstore.as_retriever(search_kwargs={"k": 1})  # ONE MATCH
+vectorstore = load_vectorstore() or build_vectorstore()
+retriever = vectorstore.as_retriever(search_kwargs={"k": 1})
 
 
 # ============================================================
 # CLEAN ANSWER EXTRACTION
 # ============================================================
 def extract_clean_answer(raw_text, user_question):
-
     raw = raw_text.strip()
     user_q = user_question.lower().strip()
-
     parts = raw.split("Q")
     best_section = ""
 
@@ -159,7 +133,6 @@ def extract_clean_answer(raw_text, user_question):
         section = p.strip()
         if not section:
             continue
-
         if user_q in section.lower():
             best_section = section
             break
@@ -174,10 +147,15 @@ def extract_clean_answer(raw_text, user_question):
 
 
 # ============================================================
-# INPUT FIELD
+# INPUT
 # ============================================================
 st.subheader(mode)
 query = st.text_input("Ask your question:")
+
+# Clear Chat Button
+if st.button("🗑️ Clear Chat"):
+    st.session_state.history = []
+    st.experimental_rerun()
 
 
 # ============================================================
@@ -190,23 +168,19 @@ if query:
         if docs:
             best = docs[0]
             clean_answer = extract_clean_answer(best.page_content, query)
-
-            st.session_state.history.append({
-                "question": query,
-                "answer": clean_answer
-            })
         else:
-            st.session_state.history.append({
-                "question": query,
-                "answer": "No matching internal information found."
-            })
+            clean_answer = "No matching internal information found."
+
+        st.session_state.history.append({
+            "question": query,
+            "answer": clean_answer
+        })
 
 
 # ============================================================
-# DISPLAY CHAT (NEWEST FIRST — NO HISTORY LABEL)
+# DISPLAY CHAT (NEWEST FIRST)
 # ============================================================
 for item in reversed(st.session_state.history):
-
     st.markdown("### ❓ Question")
     st.write(item["question"])
 
@@ -217,7 +191,7 @@ for item in reversed(st.session_state.history):
 
 
 # ============================================================
-# REBUILD BUTTON
+# REBUILD INDEX BUTTON
 # ============================================================
 if st.button("Rebuild Index"):
     vectorstore = build_vectorstore()
