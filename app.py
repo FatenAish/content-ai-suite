@@ -16,7 +16,6 @@ st.set_page_config(
     layout="wide"
 )
 
-
 # ============================================================
 # CHAT HISTORY STATE
 # ============================================================
@@ -51,19 +50,17 @@ st.markdown("""
 
 
 # ============================================================
-# DATA DIRECTORY HANDLING
+# DATA DIR
 # ============================================================
 DATA_DIR = "/app/data"
-LOCAL_FALLBACK = "./data"
-if os.path.exists(LOCAL_FALLBACK):
-    DATA_DIR = LOCAL_FALLBACK
-
+LOCAL = "./data"
+if os.path.exists(LOCAL):
+    DATA_DIR = LOCAL
 
 # ============================================================
-# EMBEDDINGS MODEL
+# EMBEDDINGS
 # ============================================================
 embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-
 
 # ============================================================
 # VECTORSTORE PATH
@@ -75,7 +72,7 @@ FAISS_DIR = os.path.join(DATA_DIR, "faiss_store")
 # BUILD VECTORSTORE
 # ============================================================
 def build_vectorstore():
-    documents = []
+    docs = []
     splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=80)
 
     for file in os.listdir(DATA_DIR):
@@ -83,20 +80,15 @@ def build_vectorstore():
             try:
                 with open(os.path.join(DATA_DIR, file), "r", encoding="utf-8", errors="ignore") as f:
                     text = f.read()
-
-                if not text.strip():
-                    continue
-
                 for chunk in splitter.split_text(text):
-                    documents.append(Document(page_content=chunk, metadata={"source": file}))
-
+                    docs.append(Document(page_content=chunk, metadata={"source": file}))
             except:
-                continue
+                pass
 
-    if not documents:
+    if not docs:
         return None
 
-    db = FAISS.from_documents(documents, embeddings)
+    db = FAISS.from_documents(docs, embeddings)
     db.save_local(FAISS_DIR)
     return db
 
@@ -107,36 +99,29 @@ def build_vectorstore():
 def load_vectorstore():
     if os.path.exists(FAISS_DIR):
         try:
-            return FAISS.load_local(
-                FAISS_DIR,
-                embeddings,
-                allow_dangerous_deserialization=True
-            )
+            return FAISS.load_local(FAISS_DIR, embeddings, allow_dangerous_deserialization=True)
         except:
             return None
     return None
 
 
-# ============================================================
-# INITIALIZE VECTORSTORE
-# ============================================================
+# INIT INDEX
 vectorstore = load_vectorstore() or build_vectorstore()
 retriever = vectorstore.as_retriever(search_kwargs={"k": 1})
 
 
 # ============================================================
-# CLEAN ANSWER EXTRACTION
+# CLEAN ANSWER
 # ============================================================
-def extract_clean_answer(raw_text, user_question):
-    raw = raw_text.strip()
-    user_q = user_question.lower()
+def extract_clean_answer(raw, query):
+    raw = raw.strip()
+    q = query.lower()
 
-    sections = raw.split("Q")
+    parts = raw.split("Q")
     best = ""
-
-    for sec in sections:
-        if user_q in sec.lower():
-            best = sec
+    for p in parts:
+        if q in p.lower():
+            best = p
             break
 
     if not best:
@@ -149,14 +134,17 @@ def extract_clean_answer(raw_text, user_question):
 
 
 # ============================================================
-# INPUT FIELD
+# INPUT FORM (Fixes clear chat + speed)
 # ============================================================
 st.subheader(mode)
-query = st.text_input("Ask your question:")
+
+with st.form("ask_form", clear_on_submit=True):
+    query = st.text_input("Ask your question:")
+    submitted = st.form_submit_button("Search")
 
 
 # ============================================================
-# CENTERED BUTTONS (FIXED)
+# BUTTONS CENTERED
 # ============================================================
 colA, colB, colC, colD = st.columns([1, 1, 1, 1])
 
@@ -168,7 +156,7 @@ with colC:
 
 
 # ============================================================
-# CLEAR CHAT (NOW WORKS 100%)
+# CLEAR CHAT — NOW WORKS 100%
 # ============================================================
 if clear_clicked:
     st.session_state.history = []
@@ -186,22 +174,21 @@ if rebuild_clicked:
 
 
 # ============================================================
-# PROCESS QUERY
+# PROCESS QUERY (ONLY WHEN USER CLICKS SEARCH)
 # ============================================================
-if query:
-    with st.spinner("Searching internal knowledge..."):
-        docs = retriever.invoke(query)
+if submitted and query:
+    docs = retriever.invoke(query)
 
-        if docs:
-            clean = extract_clean_answer(docs[0].page_content, query)
-        else:
-            clean = "No matching internal information found."
+    if docs:
+        answer = extract_clean_answer(docs[0].page_content, query)
+    else:
+        answer = "No matching internal information found."
 
-        st.session_state.history.append({"question": query, "answer": clean})
+    st.session_state.history.append({"question": query, "answer": answer})
 
 
 # ============================================================
-# DISPLAY CHAT (NEWEST FIRST)
+# DISPLAY CHAT NEWEST FIRST
 # ============================================================
 for item in reversed(st.session_state.history):
     st.markdown("### ❓ Question")
