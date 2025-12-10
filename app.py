@@ -18,6 +18,13 @@ st.set_page_config(
 )
 
 # ============================================================
+# CHAT HISTORY STATE
+# ============================================================
+if "history" not in st.session_state:
+    st.session_state.history = []
+
+
+# ============================================================
 # SIDEBAR
 # ============================================================
 with st.sidebar:
@@ -29,8 +36,9 @@ with st.sidebar:
     )
     mode = st.radio("", ["General", "Bayut", "Dubizzle"])
 
+
 # ============================================================
-# HEADER (exact design)
+# HEADER (same design)
 # ============================================================
 st.markdown(
     """
@@ -51,7 +59,7 @@ st.markdown(
 
 
 # ============================================================
-# DATA DIR (NOT DISPLAYED)
+# DATA DIR (INTERNAL ONLY)
 # ============================================================
 DATA_DIR = "/app/data"
 LOCAL_FALLBACK = "./data"
@@ -66,10 +74,12 @@ embeddings = HuggingFaceEmbeddings(
     model_name="sentence-transformers/all-MiniLM-L6-v2"
 )
 
+
 # ============================================================
 # VECTORSTORE PATH
 # ============================================================
 FAISS_DIR = os.path.join(DATA_DIR, "faiss_store")
+
 
 # ============================================================
 # BUILD VECTORSTORE (safe)
@@ -81,18 +91,15 @@ def build_vectorstore():
     for file in os.listdir(DATA_DIR):
         if file.endswith(".txt"):
             try:
-                with open(
-                    os.path.join(DATA_DIR, file),
-                    "r",
-                    encoding="utf-8",
-                    errors="ignore"
-                ) as f:
+                file_path = os.path.join(DATA_DIR, file)
+                with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
                     text = f.read()
 
                 if not text.strip():
                     continue
 
                 chunks = splitter.split_text(text)
+
                 for c in chunks:
                     documents.append(
                         Document(page_content=c, metadata={"source": file})
@@ -132,7 +139,36 @@ vectorstore = load_vectorstore()
 if vectorstore is None:
     vectorstore = build_vectorstore()
 
-retriever = vectorstore.as_retriever(search_kwargs={"k": 1})  # ONE MATCH
+retriever = vectorstore.as_retriever(search_kwargs={"k": 1})  # ONE CLEAN MATCH
+
+
+# ============================================================
+# CLEAN ANSWER EXTRACTOR
+# ============================================================
+def extract_clean_answer(raw_text, user_question):
+
+    raw = raw_text.strip()
+    user_q = user_question.lower().strip()
+
+    parts = raw.split("Q")  # e.g. Q4, Q5, etc.
+    best_section = ""
+
+    for p in parts:
+        section = p.strip()
+        if not section:
+            continue
+
+        if user_q in section.lower():
+            best_section = section
+            break
+
+    if not best_section:
+        return raw  # fallback
+
+    if "–" in best_section:
+        best_section = best_section.split("–", 1)[1].strip()
+
+    return best_section
 
 
 # ============================================================
@@ -143,64 +179,46 @@ query = st.text_input("Ask your question:")
 
 
 # ============================================================
-# CLEAN ANSWER EXTRACTION LOGIC
-# ============================================================
-def extract_clean_answer(raw_text, user_question):
-
-    # Normalize
-    raw = raw_text.strip()
-    user_q = user_question.lower().strip()
-
-    # Split the text into sections based on Q-number formatting
-    parts = raw.split("Q")
-
-    best_section = ""
-
-    for p in parts:
-        section = p.strip()
-        if not section:
-            continue
-
-        # Check if this section contains the question text
-        if user_q in section.lower():
-            best_section = section
-            break
-
-    # If nothing matches, return raw text
-    if not best_section:
-        return raw
-
-    # Remove "4 –" or similar
-    if "–" in best_section:
-        best_section = best_section.split("–", 1)[1].strip()
-
-    return best_section
-
-
-# ============================================================
-# SEARCH – SHOW ONLY THE EXACT ANSWER
+# SEARCH + SAVE HISTORY
 # ============================================================
 if query:
     with st.spinner("Searching internal knowledge..."):
         docs = retriever.invoke(query)
 
-        if not docs:
-            st.write("No matching internal information found.")
-        else:
+        if docs:
             best = docs[0]
-
             clean_answer = extract_clean_answer(best.page_content, query)
 
-            st.markdown("### ✅ Best Match")
-            st.write(clean_answer)
-
-            st.markdown("---")
-            st.markdown("### 📄 Source")
-            st.write(f"File: {best.metadata.get('source')}")
+            # SAVE TO SESSION HISTORY
+            st.session_state.history.append({
+                "question": query,
+                "answer": clean_answer
+            })
+        else:
+            st.session_state.history.append({
+                "question": query,
+                "answer": "No matching internal information found."
+            })
 
 
 # ============================================================
-# REBUILD INDEX
+# DISPLAY CHAT HISTORY (newest at top)
+# ============================================================
+if st.session_state.history:
+    st.markdown("## 📝 Chat History")
+
+    for item in reversed(st.session_state.history):
+        st.markdown("### ❓ Question")
+        st.write(item["question"])
+
+        st.markdown("### ✅ Answer")
+        st.write(item["answer"])
+
+        st.markdown("---")
+
+
+# ============================================================
+# REBUILD INDEX BUTTON
 # ============================================================
 if st.button("Rebuild Index"):
     vectorstore = build_vectorstore()
