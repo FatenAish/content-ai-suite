@@ -30,7 +30,7 @@ with st.sidebar:
     mode = st.radio("", ["General", "Bayut", "Dubizzle"])
 
 # ============================================================
-# HEADER (same as your screenshot)
+# HEADER (exact design)
 # ============================================================
 st.markdown(
     """
@@ -51,7 +51,7 @@ st.markdown(
 
 
 # ============================================================
-# DATA DIR INTERNAL (NOT DISPLAYED)
+# DATA DIR (NOT DISPLAYED)
 # ============================================================
 DATA_DIR = "/app/data"
 LOCAL_FALLBACK = "./data"
@@ -132,7 +132,7 @@ vectorstore = load_vectorstore()
 if vectorstore is None:
     vectorstore = build_vectorstore()
 
-retriever = vectorstore.as_retriever(search_kwargs={"k": 1})  # One clean answer
+retriever = vectorstore.as_retriever(search_kwargs={"k": 1})  # ONE MATCH
 
 
 # ============================================================
@@ -143,7 +143,42 @@ query = st.text_input("Ask your question:")
 
 
 # ============================================================
-# SEARCH – CLEAN ONE-ANSWER SYSTEM
+# CLEAN ANSWER EXTRACTION LOGIC
+# ============================================================
+def extract_clean_answer(raw_text, user_question):
+
+    # Normalize
+    raw = raw_text.strip()
+    user_q = user_question.lower().strip()
+
+    # Split the text into sections based on Q-number formatting
+    parts = raw.split("Q")
+
+    best_section = ""
+
+    for p in parts:
+        section = p.strip()
+        if not section:
+            continue
+
+        # Check if this section contains the question text
+        if user_q in section.lower():
+            best_section = section
+            break
+
+    # If nothing matches, return raw text
+    if not best_section:
+        return raw
+
+    # Remove "4 –" or similar
+    if "–" in best_section:
+        best_section = best_section.split("–", 1)[1].strip()
+
+    return best_section
+
+
+# ============================================================
+# SEARCH – SHOW ONLY THE EXACT ANSWER
 # ============================================================
 if query:
     with st.spinner("Searching internal knowledge..."):
@@ -154,13 +189,10 @@ if query:
         else:
             best = docs[0]
 
-            # Clean answer: remove Q-number prefixes like "Q4 –"
-            text = best.page_content.strip()
-            if "–" in text[:10]:  # dash appears early → remove question label
-                text = text.split("–", 1)[1].strip()
+            clean_answer = extract_clean_answer(best.page_content, query)
 
             st.markdown("### ✅ Best Match")
-            st.write(text)
+            st.write(clean_answer)
 
             st.markdown("---")
             st.markdown("### 📄 Source")
