@@ -4,5 +4,10 @@ langchain-openai
 langchain-text-splitters
 langchain-core
 faiss-cpu
-transformers
 sentence-transformers
+transformers
+openai
+pydantic
+pydantic-settings
+python-dotenv
+requests
